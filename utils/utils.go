@@ -133,6 +133,39 @@ func EmoteParser(message *twitchIrc.PrivateMessage, config configuration.Config)
 	}
 }
 
-func Log(message twitchIrc.Message) {
+func StringArrayContains(array []string, value string) bool {
+	for _, item := range array {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+func StringArrayContainAnyInList(from map[string]int, to []string) bool {
+	for _, item := range to {
+		if _, ok := from[item]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func StringContainsRegex(value string, regex string) bool {
+	var re = regexp2.MustCompile(regex, regexp2.None)
+	var match, _ = re.MatchString(value)
+	return match
+}
+
+func StringContainsAnyRegex(value string, regexArray []string) bool {
+	for _, regex := range regexArray {
+		if StringContainsRegex(value, regex) {
+			return true
+		}
+	}
+	return false
+}
+
+func HasCheerMessage() {
 
 }

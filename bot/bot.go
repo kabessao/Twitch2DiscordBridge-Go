@@ -40,6 +40,24 @@ func LaunchNewBot(filePath string) {
 			messageHistory = messageHistory[length-MESSAGE_HISTORY_LENGTH : length]
 		}
 
+		if utils.StringArrayContains(config.Blacklist, message.User.Name) {
+			return
+		}
+
+		var shouldSend = config.SendAllMessages
+
+		if utils.StringArrayContainAnyInList(message.User.Badges, config.FilterBadges) {
+			shouldSend = true
+		}
+
+		if utils.StringArrayContains(config.FilterUsernames, message.User.Name) {
+			shouldSend = true
+		}
+
+		if utils.StringContainsAnyRegex(message.Message, config.FilterMessages) {
+			shouldSend = true
+		}
+
 		var userInfo, err = api.GetProfileInfo(message.User.ID)
 		if err != nil {
 			return
@@ -48,12 +66,14 @@ func LaunchNewBot(filePath string) {
 		userInfo.DisplayName = fmt.Sprintf("%s [%s chat]", userInfo.DisplayName, pluralParser(config.Channel))
 
 		utils.EmoteParser(&message, config)
+		if shouldSend {
+			utils.SendWebhookMessage(
+				message.Message,
+				userInfo,
+				config,
+			)
+		}
 
-		utils.SendWebhookMessage(
-			message.Message,
-			userInfo,
-			config,
-		)
 	})
 
 	client.Join(config.Channel)

@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"testing"
 	"twitch2discordbridge/configuration"
-	"twitch2discordbridge/twitchApi"
 	"twitch2discordbridge/utils"
 )
 
@@ -84,4 +83,42 @@ func TestGetDuration(t *testing.T) {
 		}
 	}
 
+}
+
+func TestArrayHasAny(t *testing.T) {
+	var test = utils.StringArrayContainAnyInList(
+		map[string]int{
+			"foo": 1,
+			"bar": 1,
+			"bas": 1,
+		},
+		[]string{
+			"42",
+			"bar",
+		},
+	)
+
+	if test != true {
+		t.Errorf("got %v, expected true", test)
+	}
+
+	test = utils.StringArrayContainAnyInList(
+		map[string]int{
+			"foo": 1,
+			"bar": 1,
+			"bas": 1,
+		},
+		[]string{
+			"42",
+			"somethingElse",
+		},
+	)
+
+	if test != false {
+		t.Errorf("got %v, expected false", test)
+	}
+}
+
+func TestDoesRegexMatch(t *testing.T) {
+	utils.StringContainsRegex("cyberdruga", "cy*.")
 }
