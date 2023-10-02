@@ -20,8 +20,8 @@ type Config struct {
 	// optionals
 	SendAllMessages    bool              `yaml:"send_all_messages"`
 	PreventPing        bool              `yaml:"prevent_ping"`
-	ShowBitGifters     int               `yaml:"show_bit_gifters"`
-	ShowHyberChat      bool              `yaml:"show_hyber_chat"`
+	ShowBitGifters     interface{}       `yaml:"show_bit_gifters"`
+	ShowHyperChat      interface{}       `yaml:"show_hyber_chat"`
 	OutputLog          bool              `yaml:"output_log"`
 	ModActions         bool              `yaml:"mod_actions"`
 	FilterBadges       []string          `yaml:"filter_badges"`
@@ -39,7 +39,11 @@ type Config struct {
 //
 // Returns err if fails
 func LoadConfigConfigFromBytes(value []byte) (Config, error) {
-	c := Config{}
+	c := Config{ // default values
+		PreventPing:    true,
+		ShowBitGifters: false,
+		ShowHyperChat:  false,
+	}
 	err := yaml.Unmarshal(value, &c)
 
 	if err != nil {
@@ -56,8 +60,6 @@ func LoadConfigConfigFromBytes(value []byte) (Config, error) {
 		c.webhookToken = split[len(split)-1]
 		c.webhookId = split[len(split)-2]
 	}
-
-	c.PreventPing = true
 
 	return c, nil
 }

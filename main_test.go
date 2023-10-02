@@ -89,7 +89,7 @@ func TestGetDuration(t *testing.T) {
 }
 
 func TestArrayHasAny(t *testing.T) {
-	var test = utils.StringArrayContainAnyInList(
+	var test = utils.StringMapContainsAnyInList(
 		map[string]int{
 			"foo": 1,
 			"bar": 1,
@@ -105,7 +105,7 @@ func TestArrayHasAny(t *testing.T) {
 		t.Errorf("got %v, expected true", test)
 	}
 
-	test = utils.StringArrayContainAnyInList(
+	test = utils.StringMapContainsAnyInList(
 		map[string]int{
 			"foo": 1,
 			"bar": 1,

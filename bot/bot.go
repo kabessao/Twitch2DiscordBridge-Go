@@ -16,20 +16,25 @@ const (
 )
 
 type bot struct {
+	fileName       string
 	config         configuration.Config
 	helixApi       *helix.Client
 	client         *twitch.Client
 	messageHistory []twitch.PrivateMessage
 }
 
+func (b *bot) log(message string) {
+	fmt.Printf("%-30s| %s\n\n", b.fileName, message)
+}
+
 func (b *bot) onConnect() {
-	fmt.Printf("connected to %s\n\n", b.config.Channel)
+	b.log(fmt.Sprintf("connected to %s", b.config.Channel))
 }
 
 func (b *bot) onPrivateMessage(message twitch.PrivateMessage) {
 
 	if b.config.OutputLog {
-		go fmt.Print(message.Raw + "\n\n")
+		go b.log(fmt.Sprintf(message.Raw))
 	}
 
 	b.messageHistory = append(b.messageHistory, message)
@@ -44,7 +49,7 @@ func (b *bot) onPrivateMessage(message twitch.PrivateMessage) {
 
 	var shouldSend = b.config.SendAllMessages
 
-	if utils.StringArrayContainAnyInList(message.User.Badges, b.config.FilterBadges) {
+	if utils.StringMapContainsAnyInList(message.User.Badges, b.config.FilterBadges) {
 		shouldSend = true
 	}
 
@@ -56,11 +61,11 @@ func (b *bot) onPrivateMessage(message twitch.PrivateMessage) {
 		shouldSend = true
 	}
 
-	if b.config.ShowBitGifters != 0 && utils.ParseCheerMessages(&message, b.helixApi, b.config) {
+	if utils.ParseCheerMessages(&message, b.helixApi, b.config) {
 		shouldSend = true
 	}
 
-	if utils.ParseHypeChat(&message) {
+	if utils.ParseHypeChat(&message, b.config) {
 		shouldSend = true
 	}
 
@@ -73,7 +78,7 @@ func (b *bot) onPrivateMessage(message twitch.PrivateMessage) {
 	})
 
 	if err != nil {
-		fmt.Printf("Error: %v\n\n", err)
+		b.log(fmt.Sprintf("Error: %v", err))
 	}
 
 	if shouldSend {
@@ -90,7 +95,7 @@ func (b *bot) onClearChatMessage(message twitch.ClearChatMessage) {
 		return
 	}
 
-	fmt.Print(message.Raw + "\n\n")
+	b.log(fmt.Sprintf(message.Raw))
 
 	var timeoutMessage = "`User got banned permanently`"
 
@@ -202,29 +207,30 @@ func LaunchNewBot(filePath string, channel *Channel) {
 		channel.IsOk = false
 	}()
 
-	fmt.Printf("Starting from config file [%v]\n\n", filePath)
-
 	var config, err = configuration.LoadConfigFromFile(filePath)
 	if err != nil {
-		fmt.Printf("Error: %v\n\n", err)
+		fmt.Printf("Error: [%s] %v\n\n", filePath, err)
 		return
 	}
 
 	var bot = bot{
-		config: config,
+		config:   config,
+		fileName: filePath,
 	}
 
+	bot.log("Starting from config file")
+
 	if err := bot.loadConfiguration(); err != nil {
-		fmt.Printf("Error: %v\n\n", err)
+		bot.log(fmt.Sprintf("Error: %v", err))
 		return
 	}
 
 	if err := bot.startClient(); err != nil {
-		fmt.Printf("Error: %v\n\n", err)
+		bot.log(fmt.Sprintf("Error: %v", err))
 		return
 	}
 
-	defer fmt.Printf("[%s] This instance is shuting down\n\n", filePath)
+	defer bot.log(fmt.Sprintf("[%s] This instance is shuting down", filePath))
 
 	for {
 		select {
@@ -234,7 +240,7 @@ func LaunchNewBot(filePath string, channel *Channel) {
 				return
 			}
 
-			fmt.Printf("Reloading config file [%v]\n\n", filePath)
+			bot.log(fmt.Sprintf("Reloading config file [%v]", filePath))
 
 			config, err = configuration.LoadConfigFromFile(filePath)
 			if err != nil {
@@ -247,7 +253,7 @@ func LaunchNewBot(filePath string, channel *Channel) {
 			bot.client.Disconnect()
 
 			if err := bot.loadConfiguration(); err != nil {
-				fmt.Printf("Error: %v\n\n", err)
+				bot.log(fmt.Sprintf("Error: %v", err))
 				return
 			}
 
@@ -272,7 +278,13 @@ func (b *bot) startClient() (err error) {
 
 func (b *bot) sendMessage(message twitch.PrivateMessage, userInfo *helix.UsersResponse) {
 
-	message.User.DisplayName = fmt.Sprintf("%s [%s chat]", message.User.DisplayName, utils.PluralParser(b.config.Channel))
+	for _, badge := range []string{"broadcaster", "moderator", "vip"} {
+		if _, ok := message.User.Badges[badge]; ok {
+			message.User.DisplayName = fmt.Sprintf("%s [%s]", message.User.DisplayName, badge)
+		}
+	}
+
+	message.User.DisplayName = fmt.Sprintf("%s [%s chat]", message.User.DisplayName, utils.PluralSufixParser(b.config.Channel))
 
 	utils.EmoteParser(&message, b.config)
 

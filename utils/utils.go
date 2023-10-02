@@ -145,7 +145,7 @@ func StringArrayContains(array []string, value string) bool {
 	return false
 }
 
-func StringArrayContainAnyInList(from map[string]int, to []string) bool {
+func StringMapContainsAnyInList(from map[string]int, to []string) bool {
 	for _, item := range to {
 		if _, ok := from[item]; ok {
 			return true
@@ -175,7 +175,15 @@ func ParseCheerMessages(message *twitchIrc.PrivateMessage, helixApi *helix.Clien
 		bits, _ = strconv.Atoi(strBits)
 	}
 
-	if bits > 0 && bits >= config.ShowBitGifters {
+	if bits == 0 {
+		return false
+	}
+
+	if val, ok := config.ShowBitGifters.(bool); ok && !val {
+		return false
+	}
+
+	if val, ok := config.ShowBitGifters.(int); ok && bits < val {
 		return false
 	}
 
@@ -197,6 +205,8 @@ func ParseCheerMessages(message *twitchIrc.PrivateMessage, helixApi *helix.Clien
 	if strings.TrimSpace(message.Message) == "" {
 		message.Message = "`Empty message`"
 	}
+
+	message.User.DisplayName = fmt.Sprintf("%s [bits: %d]", message.User.DisplayName, bits)
 
 	return true
 }
@@ -221,15 +231,33 @@ func StringReplaceAllRegex(regex string, in string, to string) string {
 	return text
 }
 
-func ParseHypeChat(message *twitchIrc.PrivateMessage) bool {
-	if value, ok := message.Tags["pinned-chat-paid-amount"]; ok {
-		message.User.DisplayName = fmt.Sprintf("%s [HypeChat %s]", message.User.DisplayName, value)
-		return true
+func ParseHypeChat(message *twitchIrc.PrivateMessage, config configuration.Config) bool {
+
+	if value, ok := config.ShowHyperChat.(bool); ok && !value {
+		return false
 	}
-	return false
+
+	var bits int
+	if value, ok := message.Tags["pinned-chat-paid-amount"]; ok {
+		bits, _ = strconv.Atoi(value)
+	}
+
+	if bits == 0 {
+		return false
+	}
+
+	if value, ok := config.ShowHyperChat.(int); ok && bits < value {
+		return false
+	}
+
+	message.User.DisplayName = fmt.Sprintf("%s [HypeChat: %d]", message.User.DisplayName, bits)
+	return true
 }
 
-func PluralParser(value string) string {
+// uses 's when the string doesn't end with an "s"
+//
+// uses just a ' if it does
+func PluralSufixParser(value string) string {
 	if value == "" {
 		return value
 	}
