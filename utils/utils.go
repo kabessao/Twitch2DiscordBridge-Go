@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -9,10 +10,11 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"twitch2discordbridge/configuration"
+
 	"github.com/dlclark/regexp2"
 	twitchIrc "github.com/gempir/go-twitch-irc/v4"
-	"twitch2discordbridge/configuration"
-	"twitch2discordbridge/twitchApi"
+	"github.com/nicklaw5/helix"
 )
 
 // Get duration as string based on the seconds in int
@@ -22,7 +24,7 @@ import (
 //	600 > '10 minutes'
 //	610 > '10 minutes and 10 seconds'
 //	30612 > '8 hours, 30 minutes and 12 seconds''
-func GetDuration(seconds int) string {
+func ParseIntDuration(seconds int) string {
 
 	var duration = time.Second * time.Duration(seconds)
 
@@ -73,12 +75,19 @@ func reverseStringArray(array []string) []string {
 	return array
 }
 
-func SendWebhookMessage(content string, userInfo twitchApi.TwitchUserInfo, config configuration.Config) {
+func SendWebhookMessage(message twitchIrc.PrivateMessage, userInfo helix.UsersResponse, config configuration.Config) {
+
+	var imageUrl string
+
+	if users := userInfo.Data.Users; len(users) > 0 {
+		imageUrl = users[0].ProfileImageURL
+	}
+
 	// Create a payload map
 	payload := map[string]string{
-		"content":    content,
-		"username":   userInfo.DisplayName,
-		"avatar_url": userInfo.ProfileImageUrl,
+		"content":    message.Message,
+		"username":   message.User.DisplayName,
+		"avatar_url": imageUrl,
 	}
 
 	// Serialize the payload to JSON
@@ -122,13 +131,7 @@ func EmoteParser(message *twitchIrc.PrivateMessage, config configuration.Config)
 
 	for _, emote := range messageEmotes {
 		if newEmote, ok := availableEmotes[emote.Name]; ok {
-			var re = regexp2.MustCompile(fmt.Sprintf("(?<=^|\\W)%s(?=\\W|$)", emote.Name), regexp2.None)
-			text, err := re.Replace(message.Message, newEmote, -1, -1)
-			if err != nil {
-				panic(nil)
-			}
-
-			message.Message = text
+			message.Message = StringReplaceAllRegex(fmt.Sprintf("(?<=^|\\W)%s(?=\\W|$)", emote.Name), message.Message, newEmote)
 		}
 	}
 }
@@ -166,6 +169,73 @@ func StringContainsAnyRegex(value string, regexArray []string) bool {
 	return false
 }
 
-func HasCheerMessage() {
+func ParseCheerMessages(message *twitchIrc.PrivateMessage, helixApi *helix.Client, config configuration.Config) bool {
+	var bits int
+	if strBits, ok := message.Tags["bits"]; ok {
+		bits, _ = strconv.Atoi(strBits)
+	}
 
+	if bits > 0 && bits >= config.ShowBitGifters {
+		return false
+	}
+
+	var cheerMap = map[string]any{}
+	if cheermotes, err := helixApi.GetCheermotes(&helix.CheermotesParams{}); err == nil {
+		for _, emote := range cheermotes.Data.Cheermotes {
+			cheerMap[emote.Prefix] = emote.Prefix
+		}
+	}
+
+	matches := FindAllMatches("(?<=^|\\W)[a-zA-Z]+(?=\\d+(\\W|$))", message.Message)
+
+	for _, item := range matches {
+		if _, ok := cheerMap[item]; ok {
+			message.Message = StringReplaceAllRegex(item+"\\d+", message.Message, "")
+		}
+	}
+
+	if strings.TrimSpace(message.Message) == "" {
+		message.Message = "`Empty message`"
+	}
+
+	return true
+}
+
+func FindAllMatches(regex string, from string) (matches []string) {
+	re, _ := regexp2.Compile(regex, regexp2.None)
+
+	m, _ := re.FindStringMatch(from)
+
+	for m != nil {
+		matches = append(matches, m.String())
+		m, _ = re.FindNextMatch(m)
+	}
+
+	return matches
+}
+
+func StringReplaceAllRegex(regex string, in string, to string) string {
+
+	var re = regexp2.MustCompile(regex, regexp2.None)
+	text, _ := re.Replace(in, to, -1, -1)
+	return text
+}
+
+func ParseHypeChat(message *twitchIrc.PrivateMessage) bool {
+	if value, ok := message.Tags["pinned-chat-paid-amount"]; ok {
+		message.User.DisplayName = fmt.Sprintf("%s [HypeChat %s]", message.User.DisplayName, value)
+		return true
+	}
+	return false
+}
+
+func PluralParser(value string) string {
+	if value == "" {
+		return value
+	}
+
+	if value[len(value)-1] == 's' {
+		return value + "'"
+	}
+	return value + "'s"
 }

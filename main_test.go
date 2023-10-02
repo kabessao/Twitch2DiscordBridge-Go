@@ -5,6 +5,9 @@ import (
 	"testing"
 	"twitch2discordbridge/configuration"
 	"twitch2discordbridge/utils"
+
+	twitchIrc "github.com/gempir/go-twitch-irc/v4"
+	"github.com/nicklaw5/helix"
 )
 
 func TestInitConfigFile(t *testing.T) {
@@ -76,7 +79,7 @@ func TestGetDuration(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		var value = utils.GetDuration(test.value)
+		var value = utils.ParseIntDuration(test.value)
 
 		if value != test.expect {
 			t.Errorf("got [%s], expected [%s]", value, test.expect)
@@ -121,4 +124,23 @@ func TestArrayHasAny(t *testing.T) {
 
 func TestDoesRegexMatch(t *testing.T) {
 	utils.StringContainsRegex("cyberdruga", "cy*.")
+}
+
+func TestParseCheerEmotes(t *testing.T) {
+	config, _ := configuration.LoadConfigFromFile("config.yaml")
+
+	helixApi, _ := helix.NewClient(&helix.Options{
+		ClientID:     config.TwitchClientId,
+		ClientSecret: config.OauthPassword,
+	})
+
+	message := &twitchIrc.PrivateMessage{
+		Tags: map[string]string{
+			"bits": "100",
+		},
+		Message: "this is a cheer message Cheer100 Somethingelse1234",
+	}
+
+	utils.ParseCheerMessages(message, helixApi, config)
+
 }

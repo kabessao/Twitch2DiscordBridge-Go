@@ -20,9 +20,9 @@ type Config struct {
 	// optionals
 	SendAllMessages    bool              `yaml:"send_all_messages"`
 	PreventPing        bool              `yaml:"prevent_ping"`
-	ShowBitGifters     interface{}       `yaml:"show_bit_gifters"`
+	ShowBitGifters     int               `yaml:"show_bit_gifters"`
 	ShowHyberChat      bool              `yaml:"show_hyber_chat"`
-	LogFile            bool              `yaml:"log_file"`
+	OutputLog          bool              `yaml:"output_log"`
 	ModActions         bool              `yaml:"mod_actions"`
 	FilterBadges       []string          `yaml:"filter_badges"`
 	FilterUsernames    []string          `yaml:"filter_usernames"`
@@ -38,8 +38,9 @@ type Config struct {
 // Loads the configuration based on the bytes given.
 //
 // Returns err if fails
-func LoadConfigConfigFromBytes(value []byte) (c Config, err error) {
-	err = yaml.Unmarshal(value, &c)
+func LoadConfigConfigFromBytes(value []byte) (Config, error) {
+	c := Config{}
+	err := yaml.Unmarshal(value, &c)
 
 	if err != nil {
 		return c, err
@@ -56,16 +57,20 @@ func LoadConfigConfigFromBytes(value []byte) (c Config, err error) {
 		c.webhookId = split[len(split)-2]
 	}
 
+	c.PreventPing = true
+
 	return c, nil
 }
 
 // Loads the configuration directly from a given LoadConfigFromFile
 //
 // Returns error if fails
-func LoadConfigFromFile(fileName string) (c Config, err error) {
+func LoadConfigFromFile(fileName string) (Config, error) {
+
 	content, err := os.ReadFile(fileName)
 	if err != nil {
-		return c, err
+
+		return Config{}, err
 	}
 
 	return LoadConfigConfigFromBytes(content)
