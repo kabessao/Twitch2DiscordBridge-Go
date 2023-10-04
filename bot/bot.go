@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"twitch2discordbridge/configuration"
@@ -43,6 +44,10 @@ func (b *bot) onPrivateMessage(message twitch.PrivateMessage) {
 		b.messageHistory = b.messageHistory[length-MESSAGE_HISTORY_LENGTH : length]
 	}
 
+	if utils.StringContainsRegex(message.User.DisplayName, "[^\\x20-\\x7F]") {
+		message.User.DisplayName = fmt.Sprintf("%s (%s)", message.User.DisplayName, message.User.Name)
+	}
+
 	if utils.StringArrayContains(b.config.Blacklist, message.User.Name) {
 		return
 	}
@@ -73,18 +78,9 @@ func (b *bot) onPrivateMessage(message twitch.PrivateMessage) {
 		message.Message = utils.StringReplaceAllRegex("@(?=here|everyone)", message.Message, "")
 	}
 
-	userInfo, err := b.helixApi.GetUsers(&helix.UsersParams{
-		Logins: []string{message.User.Name},
-	})
-
-	if err != nil {
-		b.log(fmt.Sprintf("Error: %v", err))
-	}
-
 	if shouldSend {
 		b.sendMessage(
 			message,
-			userInfo,
 		)
 	}
 
@@ -132,7 +128,6 @@ func (b *bot) onClearChatMessage(message twitch.ClearChatMessage) {
 	for index, item := range messages {
 		b.sendMessage(
 			item,
-			usersInfo,
 		)
 
 		if index == 0 {
@@ -152,19 +147,10 @@ func (b *bot) onClearMessage(message twitch.ClearMessage) {
 	for _, m := range b.messageHistory {
 		if m.ID == message.TargetMsgID {
 
-			usersInfo, err := b.helixApi.GetUsers(&helix.UsersParams{
-				IDs: []string{m.User.ID},
-			})
-
-			if err != nil || len(usersInfo.Data.Users) == 0 {
-				return
-			}
-
 			m.Message = fmt.Sprintf("`Message Deleted:`%s", m.Message)
 
 			b.sendMessage(
 				m,
-				usersInfo,
 			)
 		}
 	}
@@ -276,7 +262,7 @@ func (b *bot) startClient() (err error) {
 	return err
 }
 
-func (b *bot) sendMessage(message twitch.PrivateMessage, userInfo *helix.UsersResponse) {
+func (b *bot) sendMessage(message twitch.PrivateMessage) {
 
 	for _, badge := range []string{"broadcaster", "moderator", "vip"} {
 		if _, ok := message.User.Badges[badge]; ok {
@@ -284,14 +270,38 @@ func (b *bot) sendMessage(message twitch.PrivateMessage, userInfo *helix.UsersRe
 		}
 	}
 
-	message.User.DisplayName = fmt.Sprintf("%s [%s chat]", message.User.DisplayName, utils.PluralSufixParser(b.config.Channel))
-
 	utils.EmoteParser(&message, b.config)
 
+	var webhookMessage = utils.WebhookMessage{
+		Content:       message.Message,
+		AllowMentions: !b.config.PreventPing,
+	}
+
+	if userInfo, err := b.helixApi.GetUsers(&helix.UsersParams{Logins: []string{message.User.Name}}); err == nil && len(userInfo.Data.Users) > 0 {
+
+		webhookMessage.AvatarUrl = userInfo.Data.Users[0].ProfileImageURL
+	}
+
+	if replyName, ok := message.Tags["reply-parent-display-name"]; ok {
+		replyMessage := strings.ReplaceAll(message.Tags["reply-parent-msg-body"], "\\\\", "\\")
+
+		var embed = utils.WebhookEmbed{
+			Author: utils.EmbedAuthor{
+				Name: replyName,
+			},
+			Description: replyMessage,
+		}
+		if userInfo, err := b.helixApi.GetUsers(&helix.UsersParams{Logins: []string{message.Tags["reply-thread-parent-user-login"]}}); err == nil && len(userInfo.Data.Users) > 0 {
+			embed.Author.IconUrl = userInfo.Data.Users[0].ProfileImageURL
+		}
+		webhookMessage.Embeds = append(webhookMessage.Embeds, embed)
+	}
+
+	webhookMessage.Username = fmt.Sprintf("%s [%s chat]", message.User.DisplayName, utils.PluralSufixParser(b.config.Channel))
+
 	utils.SendWebhookMessage(
-		message,
-		*userInfo,
-		b.config,
+		b.config.WebhookUrl,
+		webhookMessage,
 	)
 
 }

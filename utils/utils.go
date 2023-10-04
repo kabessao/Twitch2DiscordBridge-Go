@@ -75,23 +75,28 @@ func reverseStringArray(array []string) []string {
 	return array
 }
 
-func SendWebhookMessage(message twitchIrc.PrivateMessage, userInfo helix.UsersResponse, config configuration.Config) {
+type EmbedAuthor struct {
+	Name    string `json:"name"`
+	IconUrl string `json:"icon_url"`
+}
 
-	var imageUrl string
+type WebhookEmbed struct {
+	Title       string      `json:"title"`
+	Description string      `json:"description"`
+	Author      EmbedAuthor `json:"author"`
+}
 
-	if users := userInfo.Data.Users; len(users) > 0 {
-		imageUrl = users[0].ProfileImageURL
-	}
+type WebhookMessage struct {
+	Content       string         `json:"content"`
+	Username      string         `json:"username"`
+	AvatarUrl     string         `json:"avatar_url"`
+	AllowMentions bool           `json:"allowed_mentions"`
+	Embeds        []WebhookEmbed `json:"embeds"`
+}
 
-	// Create a payload map
-	payload := map[string]string{
-		"content":    message.Message,
-		"username":   message.User.DisplayName,
-		"avatar_url": imageUrl,
-	}
-
+func SendWebhookMessage(url string, message WebhookMessage) {
 	// Serialize the payload to JSON
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := json.Marshal(message)
 	if err != nil {
 		return
 	}
@@ -102,7 +107,7 @@ func SendWebhookMessage(message twitchIrc.PrivateMessage, userInfo helix.UsersRe
 	}
 
 	// Create an HTTP request
-	req, err := http.NewRequest("POST", config.WebhookUrl, bytes.NewBuffer(payloadBytes))
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		return
 	}
@@ -228,7 +233,7 @@ func StringReplaceAllRegex(regex string, in string, to string) string {
 
 	var re = regexp2.MustCompile(regex, regexp2.None)
 	text, _ := re.Replace(in, to, -1, -1)
-	return text
+	return strings.Trim(text, " ")
 }
 
 func ParseHypeChat(message *twitchIrc.PrivateMessage, config configuration.Config) bool {
