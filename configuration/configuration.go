@@ -33,6 +33,14 @@ type Config struct {
 	webhookToken string
 }
 
+func (c *Config) GetWebhookID() string {
+	return c.webhookId
+}
+
+func (c *Config) GetWebhookToken() string {
+	return c.webhookToken
+}
+
 // Loads the configuration based on the bytes given.
 //
 // Returns err if fails

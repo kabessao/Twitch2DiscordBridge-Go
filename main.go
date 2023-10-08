@@ -4,8 +4,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"twitch2discordbridge/bot"
+	discordbot "twitch2discordbridge/discordBot"
 	"twitch2discordbridge/emotes"
+	"twitch2discordbridge/twitchBot"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -14,6 +15,7 @@ const (
 	FILE_NAME_PATTERN              = "config.yaml"
 	DELAY_SECONDS_TO_UPDATE_CONFIG = 2
 	EMOTES_FILENAME                = "emotes.csv"
+	DISCORD_BOT_FILE               = "discordBot.yaml"
 )
 
 var biggestFileNameLength int
@@ -24,7 +26,7 @@ func GetSeparatorLengh() {
 
 type config struct {
 	lastUpdated time.Time
-	channel     *bot.Channel
+	channel     *twitchBot.Channel
 }
 
 func main() {
@@ -40,8 +42,13 @@ func main() {
 	for _, file := range files {
 		if _, ok := bots[file]; !ok {
 
+			if strings.HasSuffix(file, DISCORD_BOT_FILE) {
+				discordbot.LoadConfigFromFile(file)
+				continue
+			}
+
 			if strings.HasSuffix(file, EMOTES_FILENAME) {
-				emotes.UpdateCache(file)
+				emotes.LoadConfiguration(file)
 				continue
 			}
 
@@ -51,13 +58,13 @@ func main() {
 
 			bots[file] = config{
 				lastUpdated: time.Now(),
-				channel: &bot.Channel{
+				channel: &twitchBot.Channel{
 					IsOk:    true,
 					Channel: make(chan bool),
 				},
 			}
 		}
-		go bot.LaunchNewBot("./"+file, bots[file].channel)
+		go twitchBot.LaunchNewBot("./"+file, bots[file].channel)
 	}
 
 	watcher, err := fsnotify.NewWatcher()
@@ -78,7 +85,7 @@ func main() {
 			}
 
 			if event.Has(fsnotify.Write) && strings.HasSuffix(event.Name, EMOTES_FILENAME) {
-				emotes.UpdateCache(event.Name)
+				emotes.UpdateCache()
 				continue
 			}
 
@@ -91,13 +98,13 @@ func main() {
 			if _, ok := bots[fileName]; !ok {
 				bots[fileName] = config{
 					lastUpdated: time.Now(),
-					channel: &bot.Channel{
+					channel: &twitchBot.Channel{
 						IsOk:    true,
 						Channel: make(chan bool),
 					},
 				}
 
-				go bot.LaunchNewBot("./"+fileName, bots[fileName].channel)
+				go twitchBot.LaunchNewBot("./"+fileName, bots[fileName].channel)
 
 				continue
 			}
@@ -120,7 +127,7 @@ func main() {
 			if !instance.channel.IsOk {
 				println("trying to do it again \n")
 				instance.channel.IsOk = true
-				go bot.LaunchNewBot("./"+fileName, instance.channel)
+				go twitchBot.LaunchNewBot("./"+fileName, instance.channel)
 				continue
 			}
 

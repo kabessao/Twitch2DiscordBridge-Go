@@ -1,4 +1,4 @@
-package bot
+package twitchBot
 
 import (
 	"fmt"
@@ -8,8 +8,13 @@ import (
 	"time"
 
 	"twitch2discordbridge/configuration"
+	discordbot "twitch2discordbridge/discordBot"
+	"twitch2discordbridge/emotes"
 	"twitch2discordbridge/utils"
 
+	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/disgo/webhook"
+	"github.com/disgoorg/snowflake/v2"
 	"github.com/gempir/go-twitch-irc/v4"
 	"github.com/nicklaw5/helix"
 )
@@ -24,6 +29,7 @@ type bot struct {
 	helixApi       *helix.Client
 	client         *twitch.Client
 	messageHistory []twitch.PrivateMessage
+	webhookClient  webhook.Client
 }
 
 func (b *bot) log(message string) {
@@ -226,8 +232,13 @@ func LaunchNewBot(filePath string, channel *Channel) {
 
 	var config, err = configuration.LoadConfigFromFile(filePath)
 	if err != nil {
-		panic(fmt.Sprintf("Error: [%s] %v\n\n", filePath, err))
+		panic(fmt.Sprintf("Couldn't load configuration file': %v\n\n", err))
 	}
+
+	bot.webhookClient = webhook.New(
+		snowflake.MustParse(config.GetWebhookID()),
+		config.GetWebhookToken(),
+	)
 
 	bot.config = config
 
@@ -289,44 +300,85 @@ func (b *bot) startClient() (err error) {
 
 func (b *bot) sendMessage(message twitch.PrivateMessage) {
 
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Fprintf(os.Stderr, "Code panic. Error: %s", err)
+			debug.PrintStack()
+		}
+	}()
+
 	for _, badge := range []string{"broadcaster", "moderator", "vip"} {
 		if _, ok := message.User.Badges[badge]; ok {
 			message.User.DisplayName = fmt.Sprintf("%s [%s]", message.User.DisplayName, badge)
 		}
 	}
 
-	utils.EmoteParser(&message, b.config)
+	unavailableEmotes := utils.ParseEmotes(&message, b.config)
 
-	var webhookMessage = utils.WebhookMessage{
-		Content:       message.Message,
-		AllowMentions: !b.config.PreventPing,
+	var webhookMessage = discord.WebhookMessageCreate{
+		Content: message.Message,
 	}
 
 	if userInfo, err := b.helixApi.GetUsers(&helix.UsersParams{Logins: []string{message.User.Name}}); err == nil && len(userInfo.Data.Users) > 0 {
 
-		webhookMessage.AvatarUrl = userInfo.Data.Users[0].ProfileImageURL
+		webhookMessage.AvatarURL = userInfo.Data.Users[0].ProfileImageURL
 	}
 
+	var messageEmbeds []discord.Embed
 	if replyName, ok := message.Tags["reply-parent-display-name"]; ok {
-		replyMessage := strings.ReplaceAll(message.Tags["reply-parent-msg-body"], "\\\\", "\\")
-
-		var embed = utils.WebhookEmbed{
-			Author: utils.EmbedAuthor{
+		var embed = discord.Embed{
+			Author: &discord.EmbedAuthor{
 				Name: replyName,
 			},
-			Description: replyMessage,
+			Description: strings.ReplaceAll(message.Tags["reply-parent-msg-body"], "\\\\", "\\"),
 		}
 		if userInfo, err := b.helixApi.GetUsers(&helix.UsersParams{Logins: []string{message.Tags["reply-thread-parent-user-login"]}}); err == nil && len(userInfo.Data.Users) > 0 {
-			embed.Author.IconUrl = userInfo.Data.Users[0].ProfileImageURL
+			embed.Author.IconURL = userInfo.Data.Users[0].ProfileImageURL
 		}
-		webhookMessage.Embeds = append(webhookMessage.Embeds, embed)
+		messageEmbeds = append(messageEmbeds, embed)
 	}
 
 	webhookMessage.Username = fmt.Sprintf("%s [%s chat]", message.User.DisplayName, utils.PluralSufixParser(b.config.Channel))
+	webhookMessage.Embeds = messageEmbeds
 
-	utils.SendWebhookMessage(
-		b.config.WebhookUrl,
-		webhookMessage,
-	)
+	msg, err := b.webhookClient.CreateMessage(webhookMessage)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Couldn't send webhook message. Error: %s\n\n", err)
+		return
+	}
+
+	if len(unavailableEmotes) != 0 {
+
+		var tmpEmotes = map[string]string{}
+		for key, value := range unavailableEmotes {
+
+			value, err := emotes.RequestNewEmote(key, value)
+			if err != nil {
+				return
+			}
+
+			unavailableEmotes[key] = value.DiscordName
+			tmpEmotes[key] = value.Id
+
+		}
+
+		utils.ParseEmotesFromMap(&message, b.config, unavailableEmotes)
+
+		if len(messageEmbeds) != 0 {
+			messageEmbeds[0].Description = message.Tags["reply-parent-msg-body"]
+		}
+
+		b.webhookClient.UpdateMessage(
+			msg.ID,
+			discord.WebhookMessageUpdate{
+				Content: &message.Message,
+				Embeds:  &messageEmbeds,
+			},
+		)
+		for _, value := range tmpEmotes {
+			discordbot.DeleteEmote(value)
+		}
+
+	}
 
 }

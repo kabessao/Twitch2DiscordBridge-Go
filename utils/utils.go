@@ -6,10 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"bytes"
-	"encoding/json"
-	"net/http"
-
 	"twitch2discordbridge/configuration"
 	"twitch2discordbridge/emotes"
 
@@ -76,70 +72,36 @@ func reverseStringArray(array []string) []string {
 	return array
 }
 
-type EmbedAuthor struct {
-	Name    string `json:"name"`
-	IconUrl string `json:"icon_url"`
+func ParseEmotes(message *twitchIrc.PrivateMessage, config configuration.Config) map[string]string {
+	return ParseEmotesFromMap(message, config, emotes.GetEmotes())
 }
 
-type WebhookEmbed struct {
-	Title       string      `json:"title"`
-	Description string      `json:"description"`
-	Author      EmbedAuthor `json:"author"`
-}
+func ParseEmotesFromMap(message *twitchIrc.PrivateMessage, config configuration.Config, availableEmotes map[string]string) (unavailableEmotes map[string]string) {
+	messageEmotes := message.Emotes
 
-type WebhookMessage struct {
-	Content       string         `json:"content"`
-	Username      string         `json:"username"`
-	AvatarUrl     string         `json:"avatar_url"`
-	AllowMentions bool           `json:"allowed_mentions"`
-	Embeds        []WebhookEmbed `json:"embeds"`
-}
+	unavailableEmotes = make(map[string]string)
 
-func SendWebhookMessage(url string, message WebhookMessage) {
-	// Serialize the payload to JSON
-	payloadBytes, err := json.Marshal(message)
-	if err != nil {
-		return
-	}
+	for _, emote := range messageEmotes {
 
-	// Set up HTTP headers
-	headers := map[string]string{
-		"Content-Type": "application/json",
-	}
+		if StringContainsRegex(emote.Name, "\\W") {
+			continue
+		}
 
-	// Create an HTTP request
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
-	if err != nil {
-		return
-	}
+		var (
+			newEmote string
+			ok       bool
+		)
+		if newEmote, ok = availableEmotes[emote.Name]; !ok {
+			unavailableEmotes[emote.Name] = emote.ID
+			continue
+		}
 
-	// Set HTTP headers
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
+		emoteReplace := fmt.Sprintf("(?<=^|\\W)%s(?=\\W|$)", emote.Name)
 
-	// Create an HTTP client
-	client := &http.Client{}
-
-	// Send the HTTP request
-	_, err = client.Do(req)
-	if err != nil {
-		return
+		message.Message = StringReplaceAllRegex(emoteReplace, message.Message, newEmote)
 	}
 
 	return
-}
-
-func EmoteParser(message *twitchIrc.PrivateMessage, config configuration.Config) {
-	messageEmotes := message.Emotes
-
-	availableEmotes := emotes.GetEmotes()
-
-	for _, emote := range messageEmotes {
-		if newEmote, ok := availableEmotes[emote.Name]; ok {
-			message.Message = StringReplaceAllRegex(fmt.Sprintf("(?<=^|\\W)%s(?=\\W|$)", emote.Name), message.Message, newEmote)
-		}
-	}
 }
 
 func StringArrayContains(array []string, value string) bool {

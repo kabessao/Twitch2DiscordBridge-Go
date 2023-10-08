@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 	"twitch2discordbridge/configuration"
-	"twitch2discordbridge/emotes"
+	discordbot "twitch2discordbridge/discordBot"
 	"twitch2discordbridge/utils"
 
 	twitchIrc "github.com/gempir/go-twitch-irc/v4"
@@ -72,6 +72,10 @@ func TestHypeMessage(t *testing.T) {
 	}
 }
 
-func TestEmotesFile(t *testing.T) {
-	emotes.ReadFromFille("./emotes.csv")
+func TestEmoteGrabber(t *testing.T) {
+	var config, _ = configuration.LoadConfigFromFile("./config.yaml")
+	discordbot.SendWebhookMessage(
+		config.GetWebhookID(),
+		config.GetWebhookToken(),
+	)
 }
