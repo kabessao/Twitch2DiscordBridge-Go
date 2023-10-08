@@ -4,3 +4,5 @@ twitch2discordbridge
 tmp/build-errors.log
 .air.toml
 tmp
+emotes.csv
+access.log

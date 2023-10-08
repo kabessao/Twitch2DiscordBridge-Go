@@ -1,10 +1,9 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"testing"
 	"twitch2discordbridge/configuration"
+	"twitch2discordbridge/emotes"
 	"twitch2discordbridge/utils"
 
 	twitchIrc "github.com/gempir/go-twitch-irc/v4"
@@ -71,4 +70,8 @@ func TestHypeMessage(t *testing.T) {
 	if "test [HypeChat: 100]" != message.User.DisplayName {
 		t.Errorf("wrong username, got [%s]", message.User.DisplayName)
 	}
+}
+
+func TestEmotesFile(t *testing.T) {
+	emotes.ReadFromFille("./emotes.csv")
 }

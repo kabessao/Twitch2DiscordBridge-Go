@@ -18,18 +18,16 @@ type Config struct {
 	Channel        string `yaml:"channel"`
 
 	// optionals
-	SendAllMessages    bool              `yaml:"send_all_messages"`
-	PreventPing        bool              `yaml:"prevent_ping"`
-	ShowBitGifters     interface{}       `yaml:"show_bit_gifters"`
-	ShowHyperChat      interface{}       `yaml:"show_hyber_chat"`
-	OutputLog          bool              `yaml:"output_log"`
-	ModActions         bool              `yaml:"mod_actions"`
-	FilterBadges       []string          `yaml:"filter_badges"`
-	FilterUsernames    []string          `yaml:"filter_usernames"`
-	Blacklist          []string          `yaml:"blacklist"`
-	FilterMessages     []string          `yaml:"filter_messages"`
-	EmoteTranslator    map[string]string `yaml:"emote_translator"`
-	EmoteTranslatorUrl string            `yaml:"emote_translator_url"`
+	SendAllMessages bool        `yaml:"send_all_messages"`
+	PreventPing     bool        `yaml:"prevent_ping"`
+	ShowBitGifters  interface{} `yaml:"show_bit_gifters"`
+	ShowHyperChat   interface{} `yaml:"show_hyber_chat"`
+	OutputLog       bool        `yaml:"output_log"`
+	ModActions      bool        `yaml:"mod_actions"`
+	FilterBadges    []string    `yaml:"filter_badges"`
+	FilterUsernames []string    `yaml:"filter_usernames"`
+	Blacklist       []string    `yaml:"blacklist"`
+	FilterMessages  []string    `yaml:"filter_messages"`
 
 	webhookId    string
 	webhookToken string

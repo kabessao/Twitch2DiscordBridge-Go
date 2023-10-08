@@ -11,6 +11,7 @@ import (
 	"net/http"
 
 	"twitch2discordbridge/configuration"
+	"twitch2discordbridge/emotes"
 
 	"github.com/dlclark/regexp2"
 	twitchIrc "github.com/gempir/go-twitch-irc/v4"
@@ -132,7 +133,7 @@ func SendWebhookMessage(url string, message WebhookMessage) {
 func EmoteParser(message *twitchIrc.PrivateMessage, config configuration.Config) {
 	messageEmotes := message.Emotes
 
-	availableEmotes := config.EmoteTranslator
+	availableEmotes := emotes.GetEmotes()
 
 	for _, emote := range messageEmotes {
 		if newEmote, ok := availableEmotes[emote.Name]; ok {

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 	"twitch2discordbridge/bot"
+	"twitch2discordbridge/emotes"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -12,7 +13,14 @@ import (
 const (
 	FILE_NAME_PATTERN              = "config.yaml"
 	DELAY_SECONDS_TO_UPDATE_CONFIG = 2
+	EMOTES_FILENAME                = "emotes.csv"
 )
+
+var biggestFileNameLength int
+
+func GetSeparatorLengh() {
+
+}
 
 type config struct {
 	lastUpdated time.Time
@@ -21,7 +29,7 @@ type config struct {
 
 func main() {
 
-	files, err := filepath.Glob("*" + FILE_NAME_PATTERN)
+	files, err := filepath.Glob("*")
 
 	if err != nil {
 		panic(err)
@@ -31,6 +39,16 @@ func main() {
 
 	for _, file := range files {
 		if _, ok := bots[file]; !ok {
+
+			if strings.HasSuffix(file, EMOTES_FILENAME) {
+				emotes.UpdateCache(file)
+				continue
+			}
+
+			if !strings.HasSuffix(file, FILE_NAME_PATTERN) {
+				continue
+			}
+
 			bots[file] = config{
 				lastUpdated: time.Now(),
 				channel: &bot.Channel{
@@ -56,6 +74,11 @@ func main() {
 		case event, ok := <-watcher.Events:
 
 			if !ok {
+				continue
+			}
+
+			if event.Has(fsnotify.Write) && strings.HasSuffix(event.Name, EMOTES_FILENAME) {
+				emotes.UpdateCache(event.Name)
 				continue
 			}
 

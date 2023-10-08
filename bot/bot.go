@@ -2,6 +2,8 @@ package bot
 
 import (
 	"fmt"
+	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -25,7 +27,27 @@ type bot struct {
 }
 
 func (b *bot) log(message string) {
-	fmt.Printf("%-30s| %s\n\n", b.fileName, message)
+	log(b.fileName, message)
+}
+
+func log(fileName string, message string) {
+	fmt.Printf("%-30s| %s\n\n", fileName, message)
+}
+
+func (b *bot) recover() {
+	if err := recover(); err != nil {
+		fmt.Fprintf(os.Stderr, "%-30s| Error: %s\n\n", b.fileName, err)
+		print("test")
+		debug.PrintStack()
+	}
+}
+
+func (b *bot) errorLog(err error) {
+	errorLog(b.fileName, err)
+}
+
+func errorLog(fileName string, err interface{}) {
+	fmt.Fprintf(os.Stderr, "%-30s| Error: %s\n\n", fileName, err)
 }
 
 func (b *bot) onConnect() {
@@ -188,32 +210,35 @@ type Channel struct {
 }
 
 func LaunchNewBot(filePath string, channel *Channel) {
+	var bot = bot{
+		fileName: filePath,
+	}
+
+	defer recover()
 
 	defer func() {
 		channel.IsOk = false
+		if err := recover(); err != nil {
+			errorLog(filePath, err)
+			debug.PrintStack()
+		}
 	}()
 
 	var config, err = configuration.LoadConfigFromFile(filePath)
 	if err != nil {
-		fmt.Printf("Error: [%s] %v\n\n", filePath, err)
-		return
+		panic(fmt.Sprintf("Error: [%s] %v\n\n", filePath, err))
 	}
 
-	var bot = bot{
-		config:   config,
-		fileName: filePath,
-	}
+	bot.config = config
 
 	bot.log("Starting from config file")
 
 	if err := bot.loadConfiguration(); err != nil {
-		bot.log(fmt.Sprintf("Error: %v", err))
-		return
+		panic(fmt.Sprintf("Error: %v", err))
 	}
 
 	if err := bot.startClient(); err != nil {
-		bot.log(fmt.Sprintf("Error: %v", err))
-		return
+		panic(fmt.Sprintf("Error: %v", err))
 	}
 
 	defer bot.log(fmt.Sprintf("[%s] This instance is shuting down", filePath))
