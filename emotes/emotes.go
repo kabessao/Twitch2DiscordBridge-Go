@@ -1,7 +1,6 @@
 package emotes
 
 import (
-	"encoding/base64"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -13,7 +12,7 @@ import (
 )
 
 const (
-	emmote_url = "https://static-cdn.jtvnw.net/emoticons/v2/%s/default/dark/2.0"
+	emote_format = "https://static-cdn.jtvnw.net/emoticons/v2/%s/default/dark/2.0"
 )
 
 var emotesCache = map[string]string{}
@@ -121,9 +120,40 @@ type emote struct {
 	Id          string
 }
 
-func RequestNewEmote(emoteName string, emoteId string) (em emote, err error) {
+var temporaryEmotesEnvLock sync.Mutex
+
+func TemporaryEmotesEnv(emotes map[string]string, action func(map[string]string)) {
+
+	temporaryEmotesEnvLock.Lock()
+
+	defer temporaryEmotesEnvLock.Unlock()
+
+	var tmpEmotes = map[string]string{}
+
+	for key, value := range emotes {
+
+		value, err := RequestTwitchEmote(key, value)
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Couldn't request emote %s with key %s. Error: %s", key, value, err)
+			continue
+		}
+
+		emotes[key] = value.DiscordName
+		tmpEmotes[key] = value.Id
+
+	}
+
+	action(emotes)
+
+	for _, value := range tmpEmotes {
+		discordbot.DeleteEmote(value)
+	}
+}
+
+func RequestTwitchEmote(emoteName string, emoteId string) (em emote, err error) {
 	// Make an HTTP GET request to fetch the image
-	response, err := http.Get(fmt.Sprintf(emmote_url, emoteId))
+	response, err := http.Get(fmt.Sprintf(emote_format, emoteId))
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -143,10 +173,7 @@ func RequestNewEmote(emoteName string, emoteId string) (em emote, err error) {
 		return
 	}
 
-	// Encode the image data as base64
-	base64Image := base64.StdEncoding.EncodeToString(imageData)
-
-	result, err := discordbot.CreateEmote(emoteName, base64Image, format)
+	result, err := discordbot.CreateEmote(emoteName, imageData, format)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating emotes in discord: %s\n\n", err)
 		return
@@ -158,7 +185,7 @@ func RequestNewEmote(emoteName string, emoteId string) (em emote, err error) {
 	}
 
 	em.DiscordName = fmt.Sprintf("<%s:%s:%s>", animated, result.Name, result.ID)
-	em.Id = result.ID
+	em.Id = result.ID.String()
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating emotes in discord: %s\n\n", err)
@@ -175,6 +202,7 @@ func getImageFormat(data []byte) (string, error) {
 		"\x89\x50\x4E\x47\x0D\x0A\x1A\x0A": "png",
 		"GIF89a":                           "gif",
 		"APNG":                             "apng",
+		"RIFF\xFF\xFF\xFF\xFFWEBPVP8 ":     "webp",
 	}
 
 	for signature, format := range formats {

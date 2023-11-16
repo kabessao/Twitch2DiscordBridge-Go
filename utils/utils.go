@@ -8,6 +8,7 @@ import (
 
 	"twitch2discordbridge/configuration"
 	"twitch2discordbridge/emotes"
+	externalemotes "twitch2discordbridge/externalEmotes"
 
 	"github.com/dlclark/regexp2"
 	twitchIrc "github.com/gempir/go-twitch-irc/v4"
@@ -72,16 +73,48 @@ func reverseStringArray(array []string) []string {
 	return array
 }
 
-func ParseEmotes(message *twitchIrc.PrivateMessage, config configuration.Config) map[string]string {
-	return ParseEmotesFromMap(message, config, emotes.GetEmotes())
+func ParseExternalEmotes(channelId string, message *twitchIrc.PrivateMessage, config configuration.Config) map[string]externalemotes.ExternalEmote {
+	return ParseExternalEmotesFromMap(channelId, message, config, emotes.GetEmotes())
 }
 
-func ParseEmotesFromMap(message *twitchIrc.PrivateMessage, config configuration.Config, availableEmotes map[string]string) (unavailableEmotes map[string]string) {
-	messageEmotes := message.Emotes
+func ParseExternalEmotesFromMap(channelId string, message *twitchIrc.PrivateMessage, config configuration.Config, availableEmotes map[string]string) (unavailableEmotes map[string]externalemotes.ExternalEmote) {
+	emotes := externalemotes.GetAll(channelId, message.User.ID)
+
+	unavailableEmotes = make(map[string]externalemotes.ExternalEmote)
+
+	for name, emote := range emotes {
+
+		if StringContainsRegex(name, "\\W") {
+			continue
+		}
+
+		var (
+			newEmote string
+			ok       bool
+		)
+		if newEmote, ok = availableEmotes[name]; !ok {
+			unavailableEmotes[name] = emote
+			continue
+		}
+
+		emoteReplace := fmt.Sprintf("(?<=^|\\W)(?<!\\<\\:)%s(?!\\:\\d+\\>)(?=\\W|$)", name)
+
+		message.Message = StringReplaceAllRegex(emoteReplace, message.Message, newEmote)
+	}
+
+	return
+}
+
+func ParseTwitchEmotes(message *twitchIrc.PrivateMessage, config configuration.Config) map[string]string {
+	return ParseTwitchEmotesFromMap(message, config, emotes.GetEmotes())
+}
+
+func ParseTwitchEmotesFromMap(message *twitchIrc.PrivateMessage, config configuration.Config, availableEmotes map[string]string) (unavailableEmotes map[string]string) {
+	emotes := message.Emotes
 
 	unavailableEmotes = make(map[string]string)
 
-	for _, emote := range messageEmotes {
+	for _, emote := range emotes {
 
 		if StringContainsRegex(emote.Name, "\\W") {
 			continue
@@ -96,7 +129,7 @@ func ParseEmotesFromMap(message *twitchIrc.PrivateMessage, config configuration.
 			continue
 		}
 
-		emoteReplace := fmt.Sprintf("(?<=^|\\W)%s(?=\\W|$)", emote.Name)
+		emoteReplace := fmt.Sprintf("(?<=^|\\W)(?<!\\<\\:)%s(?!\\:\\d+\\>)(?=\\W|$)", emote.Name)
 
 		message.Message = StringReplaceAllRegex(emoteReplace, message.Message, newEmote)
 	}

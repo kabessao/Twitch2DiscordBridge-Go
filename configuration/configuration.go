@@ -18,27 +18,23 @@ type Config struct {
 	Channel        string `yaml:"channel"`
 
 	// optionals
-	SendAllMessages bool        `yaml:"send_all_messages"`
-	PreventPing     bool        `yaml:"prevent_ping"`
-	ShowBitGifters  interface{} `yaml:"show_bit_gifters"`
-	ShowHyperChat   interface{} `yaml:"show_hyber_chat"`
-	OutputLog       bool        `yaml:"output_log"`
-	ModActions      bool        `yaml:"mod_actions"`
-	FilterBadges    []string    `yaml:"filter_badges"`
-	FilterUsernames []string    `yaml:"filter_usernames"`
-	Blacklist       []string    `yaml:"blacklist"`
-	FilterMessages  []string    `yaml:"filter_messages"`
-
-	webhookId    string
-	webhookToken string
+	SendAllMessages   bool        `yaml:"send_all_messages"`
+	PreventPing       bool        `yaml:"prevent_ping"`
+	ShowBitGifters    interface{} `yaml:"show_bit_gifters"`
+	ShowHyperChat     interface{} `yaml:"show_hyber_chat"`
+	OutputLog         bool        `yaml:"output_log"`
+	ModActions        bool        `yaml:"mod_actions"`
+	FilterBadges      []string    `yaml:"filter_badges"`
+	FilterUsernames   []string    `yaml:"filter_usernames"`
+	Blacklist         []string    `yaml:"blacklist"`
+	FilterMessages    []string    `yaml:"filter_messages"`
+	GrabEmotes        bool        `yaml:"grab_emotes"`
+	UseExternalEmotes bool        `yaml:"use_external_emotes"`
+	ModTools          ModTools    `yaml:"mod_tools"`
 }
 
-func (c *Config) GetWebhookID() string {
-	return c.webhookId
-}
-
-func (c *Config) GetWebhookToken() string {
-	return c.webhookToken
+type ModTools struct {
+	LogFirstMessages *int `yaml:"log_first_messages"`
 }
 
 // Loads the configuration based on the bytes given.
@@ -62,9 +58,6 @@ func LoadConfigConfigFromBytes(value []byte) (Config, error) {
 		if len(split) < 2 {
 			return c, errors.New(fmt.Sprintf("[%s] is not a valid url", c.WebhookUrl))
 		}
-
-		c.webhookToken = split[len(split)-1]
-		c.webhookId = split[len(split)-2]
 	}
 
 	return c, nil

@@ -1,19 +1,41 @@
 package discordbot
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"sync"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/disgoorg/disgo"
+	"github.com/disgoorg/disgo/bot"
+	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/disgo/rest"
+	"github.com/disgoorg/snowflake/v2"
 	"gopkg.in/yaml.v3"
 )
 
-var session *discordgo.Session
+var botClient bot.Client
+
+var session rest.Emojis
+
+var emoteManipulation sync.Mutex
 
 var config = map[string]string{}
 
-func CloseDiscordBot() {
-	session.Close()
+type allowedFormats map[string]discord.IconType
+
+func (t allowedFormats) Contains(key string) bool {
+	if _, ok := t[key]; ok {
+		return true
+	}
+	return false
+}
+
+var AllowedFormats = allowedFormats{
+	"png":  discord.IconTypePNG,
+	"gif":  discord.IconTypeGIF,
+	"jpeg": discord.IconTypeJPEG,
+	"webp": discord.IconTypeWEBP,
 }
 
 func LoadConfigFromFile(fileName string) (err error) {
@@ -31,37 +53,40 @@ func LoadConfigFromFile(fileName string) (err error) {
 		return
 	}
 
-	session, err = discordgo.New("Bot " + config["token"])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Couldn't start the discord bot. Error: %v'\n\n", err)
-		return
-	}
+	botClient, err = disgo.New(config["token"])
 
-	session.Identify.Intents = discordgo.IntentsAllWithoutPrivileged
+	botClient.OpenGateway(context.TODO())
 
-	err = session.Open()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Couldn't connect to Discord Bot. Error: %v'\n\n", err)
-		panic(err)
-	}
+	defer botClient.Close(context.TODO())
+
+	session = botClient.Rest()
 
 	println("Discord config loaded\n")
+
+	cleanUp()
 
 	return
 }
 
-func CreateEmote(name string, base64Image string, format string) (emoji *discordgo.Emoji, err error) {
+func CreateEmote(name string, image []byte, format string) (emoji *discord.Emoji, err error) {
+
+	emoteManipulation.Lock()
+
+	defer emoteManipulation.Unlock()
 
 	if session == nil {
 		err = fmt.Errorf("No discord bot present, skipping")
 		return
 	}
 
-	emoji, err = session.GuildEmojiCreate(
-		config["server_id"],
-		&discordgo.EmojiParams{
-			Name:  name,
-			Image: fmt.Sprintf("data:image/%s;base64,%s", format, base64Image),
+	emoji, err = session.CreateEmoji(
+		snowflake.MustParse(config["server_id"]),
+		discord.EmojiCreate{
+			Name: name,
+			Image: *discord.NewIconRaw(
+				AllowedFormats[format],
+				image,
+			),
 		},
 	)
 
@@ -73,6 +98,34 @@ func CreateEmote(name string, base64Image string, format string) (emoji *discord
 	return
 }
 
-func DeleteEmote(id string) {
-	session.GuildEmojiDelete(config["server_id"], id)
+func DeleteEmote(id string) error {
+
+	emoteManipulation.Lock()
+
+	defer emoteManipulation.Unlock()
+
+	return session.DeleteEmoji(
+		snowflake.MustParse(config["server_id"]),
+		snowflake.MustParse(id),
+	)
+}
+
+func cleanUp() {
+	emojis, err := session.GetEmojis(snowflake.MustParse(config["server_id"]))
+	if err != nil {
+		return
+	}
+
+	for _, item := range emojis {
+
+		if item.Creator == nil || item.Creator.ID != botClient.ApplicationID() {
+			continue
+		}
+
+		println("Cleanup: deleting emote " + item.Name)
+		session.DeleteEmoji(
+			snowflake.MustParse(config["server_id"]),
+			item.ID,
+		)
+	}
 }

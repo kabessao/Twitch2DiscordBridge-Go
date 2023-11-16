@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 	"twitch2discordbridge/configuration"
-	discordbot "twitch2discordbridge/discordBot"
+	externalemotes "twitch2discordbridge/externalEmotes"
 	"twitch2discordbridge/utils"
 
 	twitchIrc "github.com/gempir/go-twitch-irc/v4"
@@ -72,10 +72,40 @@ func TestHypeMessage(t *testing.T) {
 	}
 }
 
-func TestEmoteGrabber(t *testing.T) {
-	var config, _ = configuration.LoadConfigFromFile("./config.yaml")
-	discordbot.SendWebhookMessage(
-		config.GetWebhookID(),
-		config.GetWebhookToken(),
+func Test7TVgetEmotes(t *testing.T) {
+
+	var config, err = configuration.LoadConfigFromFile("./config.yaml")
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	tclient, err := helix.NewClient(&helix.Options{
+		ClientID:        config.TwitchClientId,
+		UserAccessToken: config.OauthPassword,
+	})
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	userInfo, err := tclient.GetUsers(
+		&helix.UsersParams{
+			Logins: []string{config.Channel},
+		},
 	)
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	var (
+		users = userInfo.Data.Users
+		user  helix.User
+	)
+
+	if len(users) != 0 {
+		user = users[0]
+	}
+
 }

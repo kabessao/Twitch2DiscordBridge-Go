@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -18,18 +20,13 @@ const (
 	DISCORD_BOT_FILE               = "discordBot.yaml"
 )
 
-var biggestFileNameLength int
-
-func GetSeparatorLengh() {
-
-}
-
 type config struct {
 	lastUpdated time.Time
 	channel     *twitchBot.Channel
 }
 
 func main() {
+	var path = fmt.Sprintf(".%c", os.PathSeparator)
 
 	files, err := filepath.Glob("*")
 
@@ -64,7 +61,7 @@ func main() {
 				},
 			}
 		}
-		go twitchBot.LaunchNewBot("./"+file, bots[file].channel)
+		go twitchBot.LaunchNewBot(path+file, bots[file].channel)
 	}
 
 	watcher, err := fsnotify.NewWatcher()
@@ -72,7 +69,7 @@ func main() {
 		panic(err)
 	}
 
-	watcher.Add("./")
+	watcher.Add(path)
 
 	defer watcher.Close()
 
@@ -93,7 +90,7 @@ func main() {
 				continue
 			}
 
-			fileName := strings.ReplaceAll(event.Name, "./", "")
+			fileName := strings.ReplaceAll(event.Name, path, "")
 
 			if _, ok := bots[fileName]; !ok {
 				bots[fileName] = config{
@@ -104,7 +101,7 @@ func main() {
 					},
 				}
 
-				go twitchBot.LaunchNewBot("./"+fileName, bots[fileName].channel)
+				go twitchBot.LaunchNewBot(path+fileName, bots[fileName].channel)
 
 				continue
 			}
@@ -125,9 +122,9 @@ func main() {
 			}
 
 			if !instance.channel.IsOk {
-				println("trying to do it again \n")
+				fmt.Printf("Instance %s was down. Restarting.\n", path+fileName)
 				instance.channel.IsOk = true
-				go twitchBot.LaunchNewBot("./"+fileName, instance.channel)
+				go twitchBot.LaunchNewBot(path+fileName, instance.channel)
 				continue
 			}
 
