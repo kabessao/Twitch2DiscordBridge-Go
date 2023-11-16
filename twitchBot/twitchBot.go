@@ -138,6 +138,10 @@ func (b *bot) shouldSendFirstMessages(message *twitch.PrivateMessage) bool {
 
 	}
 
+	if _, ok := b.firstMessages[message.User.ID]; ok {
+		delete(b.firstMessages, message.User.ID)
+	}
+
 	return false
 }
 
@@ -362,8 +366,6 @@ func (b *bot) sendMessage(message twitch.PrivateMessage) {
 		b.isOverHeated = true
 	}
 
-	fmt.Printf("b.overHeatThreshold: %v\n", b.overHeatAmount)
-
 	if b.overHeatAmount <= 5 && b.isOverHeated {
 		b.isOverHeated = false
 	}
@@ -451,15 +453,10 @@ func (b *bot) sendMessage(message twitch.PrivateMessage) {
 
 			utils.ParseTwitchEmotesFromMap(&message, b.config, emotes)
 
-			if len(messageEmbeds) != 0 {
-				messageEmbeds[0].Description = message.Reply.ParentMsgBody
-			}
-
 			b.webhookClient.UpdateMessage(
 				msg.ID,
 				discord.WebhookMessageUpdate{
 					Content: &message.Message,
-					Embeds:  &messageEmbeds,
 				},
 			)
 
