@@ -1,0 +1,119 @@
+# This file represents a bot instance. You can have multiple bots for multiple
+# instances. Every twitch bot config file needs to follow this pattern: 
+#   <anything>config.yaml
+#
+# this means you can give it any name, as long as it ends with "config.yaml". Ex: 
+#   henya_config.yaml
+#   modsconfig.yaml
+#   cheer-messages-config.yaml
+#
+# this also means that if you want to temporarily disable an instance you just
+# need to rename it. Ex: 
+#   henya_config.yaml -> henya.yaml
+#   modsconfig.yaml -> mods.yaml
+#   cheer-messages-config.yaml -> cheer-messages.yaml
+
+
+# MANDATORY FIELDS
+# the bot WILL NOT WORK if you don't fill these up
+webhook_url: 'THE WEBHOOK URL FOR THE CHANNEL'
+twitch_client_id: 'YOUR TWITCH ACCOUNT ID'
+twitch_username: 'YOUR USERNAME'
+oauth_password: 'YOUR TWITCH OAUTH'
+channel: 'THE CHANNEL TO LISTEN TO'
+
+# OPTIONAL FIELDS
+# These fields are optional, and you can uncomment the ones you want to use.
+
+# This sends all messages, without any filters.
+# This option is not recommended since Discord applies rate limits on webhook
+# apis when it's being used too much, and this option will trigger this whenever 
+# chat goes crazy. In these situations the bot will "overheat" and will stop working
+# until it can safely resume.
+#
+# Default value: false
+#
+#send_all_messages: false
+
+# This option makes sure the bot doesn't ping @everyone or @here.
+#
+# Default: true
+#
+#prevent_ping: true
+
+# This option shows bit messages. You can either use "true" or "false", or provide
+# a minimum bit value for it to show up.
+#
+# The amount will be shown on the users name.
+#
+# Default: false
+#
+#show_bit_gifters: true # shows every cheer message
+#show_bit_gifters: 500 # shows only cheer messages with 500 bits or more 
+
+# This option is similar to the cheer messages, but with hyperchats 
+# (even though they're dying in the next months)
+#
+# Default: false
+#
+#show_hyper_chat: true # shows every hyper chat
+#show_hyper_chat: 500 # shows only hyper chats with 500 bits or more
+
+# This option makes the bot instance to print out every message in raw format.
+# if you enable "mod_actions" it'll output those messages in raw format as well.
+#
+# Default: false
+#
+#mod_actions: false
+
+# With this option you can choose which message is sent by the user's badge.
+# The most commmons are the "broadcaster", the "vip", and the "moderator",
+# but you can also use "verified" or any other badge.
+# This option is a list.
+#
+# Default: none
+#
+# filter_badges: 
+#   - broadcaster
+#   - moderator
+#   - vip
+
+# With this option you can choose wich message is sent by the user's name.
+# This option is a list.
+#
+# Default: none
+#
+#filter_usernames:
+#   - henyathegenius
+#   - ironmouse
+
+# This option filters out any user in it, even if they match any of the 
+# other filters. "mod_actions" is not affected by this option though. 
+# This option is a list.
+#
+# Default: none
+#
+#blacklist: 
+#   - miskif
+#   - StreamElements
+
+# With this option you can choose which message is sent by the contents of 
+# said message. This is useful if you want to be notified if someone pings you
+# when you're not in chat.
+# This option is a list, and it uses regex.
+#
+# Default: none
+#
+#filter_messages: 
+#   - 'cyberdruga'
+#   - '[Cc]yber[Dd]ruga'
+#   - '[^\x20-\x7F]' # I personally use this regex a lot to get japanese messages only
+
+# This option only works if you have the Discord bot setted up and running.
+# This is an opt in option because the apis for creation/deletion of emotes is the 
+# most propitios to get rate limited.
+#
+# Default: false
+#
+#grab_emotes: true
+

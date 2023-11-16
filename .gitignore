@@ -1,5 +1,6 @@
 Session.vim
-*.yaml
+*config.yaml
+discordBot.yaml
 twitch2discordbridge
 tmp/build-errors.log
 .air.toml
