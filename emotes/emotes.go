@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 	discordbot "twitch2discordbridge/discordBot"
 )
 
@@ -145,6 +146,8 @@ func TemporaryEmotesEnv(emotes map[string]string, action func(map[string]string)
 	}
 
 	action(emotes)
+
+	time.Sleep(5 * time.Second)
 
 	for _, value := range tmpEmotes {
 		discordbot.DeleteEmote(value)

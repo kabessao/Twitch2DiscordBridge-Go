@@ -55,6 +55,11 @@ func LoadConfigFromFile(fileName string) (err error) {
 
 	botClient, err = disgo.New(config["token"])
 
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Couldn't load configuration. Error: %v'\n\n", err)
+		return
+	}
+
 	botClient.OpenGateway(context.TODO())
 
 	defer botClient.Close(context.TODO())
