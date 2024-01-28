@@ -63,7 +63,7 @@ Now you'll see an embed whenever someone is replying a thread with the content o
 
 # Discord Bot Configuration
 
-You can look up on how to create a discord bot, but basically you'll need to go to the [Discord Developer Page](https://discord.com/developers/applications) and create a `New Application`. In the newly created application you can go to OAuth -> General and generate a new secret, which is basically your bot token.
+You can look up on how to create a discord bot, but basically you'll need to go to the [Discord Developer Page](https://discord.com/developers/applications) and create a `New Application`. In the newly created application you can go to `Bot` and generate a new secret with the `Reset Token` button, which is basically your bot token.
 
 Under OAuth -> URL Generator you gotta mark the option `bot`, and then `Administrator`. At the end of the page you will find a generated url that you have to copy and paste in a new tab. 
 
