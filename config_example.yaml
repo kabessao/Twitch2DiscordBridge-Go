@@ -20,10 +20,28 @@ webhook_url: 'THE WEBHOOK URL FOR THE CHANNEL'
 twitch_client_id: 'YOUR TWITCH ACCOUNT ID'
 twitch_username: 'YOUR USERNAME'
 oauth_password: 'YOUR TWITCH OAUTH'
-channel: 'THE CHANNEL TO LISTEN TO'
+
+# you can use this option if you're gonna use only one channel
+#channel: 'henyathegenius'
+
+# or this one if you wanna monitor multiple channels with the same options
+#channels: 
+#  - 'henyathegenius'
+#  - 'zentreya'
 
 # OPTIONAL FIELDS
 # These fields are optional, and you can uncomment the ones you want to use.
+
+# You can use this option to set when you want the messages sent.
+#
+# This option takes precedence over the others.
+#
+# WARNING: If you set to anything other than online or offline you will get no message. 
+#
+# Default value: "" # empty string, meaning everything should be sent
+#
+#on_stream_status: online # Only send messages if the streamer is online
+#on_stream_status: offline # Only send messages if the streamer is offline
 
 # This sends all messages, without any filters.
 # This option is not recommended since Discord applies rate limits on webhook

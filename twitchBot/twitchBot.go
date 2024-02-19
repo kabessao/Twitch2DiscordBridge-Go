@@ -27,12 +27,12 @@ type bot struct {
 	config          configuration.Config
 	helixApi        *helix.Client
 	client          *twitch.Client
-	messageHistory  []twitch.PrivateMessage
 	webhookClient   webhook.Client
 	sendMessageLock sync.Mutex
 	firstMessages   map[string]int
 	overHeatAmount  int
 	isOverHeated    bool
+	messageHistory  map[string][]twitch.PrivateMessage
 }
 
 func (b *bot) log(message string) {
@@ -60,7 +60,7 @@ func errorLog(fileName string, err interface{}) {
 }
 
 func (b *bot) onConnect() {
-	b.log(fmt.Sprintf("connected to %s", b.config.Channel))
+	b.log(fmt.Sprintf("connected to [%s]", strings.Join(b.config.Channels, ",")))
 }
 
 func (b *bot) onPrivateMessage(message twitch.PrivateMessage) {
@@ -69,10 +69,10 @@ func (b *bot) onPrivateMessage(message twitch.PrivateMessage) {
 		go b.log(fmt.Sprintf(message.Raw))
 	}
 
-	b.messageHistory = append(b.messageHistory, message)
+	b.messageHistory[message.Channel] = append(b.messageHistory[message.Channel], message)
 
-	if length := len(b.messageHistory); length > MESSAGE_HISTORY_LENGTH {
-		b.messageHistory = b.messageHistory[length-MESSAGE_HISTORY_LENGTH : length]
+	if length := len(b.messageHistory[message.Channel]); length > MESSAGE_HISTORY_LENGTH {
+		b.messageHistory[message.Channel] = b.messageHistory[message.Channel][length-MESSAGE_HISTORY_LENGTH : length]
 	}
 
 	if utils.StringContainsRegex(message.User.DisplayName, "[^\\x20-\\x7F]") {
@@ -80,6 +80,10 @@ func (b *bot) onPrivateMessage(message twitch.PrivateMessage) {
 	}
 
 	if utils.StringArrayContains(b.config.Blacklist, message.User.Name) {
+		return
+	}
+
+	if !b.onStreamStatus(message.Channel) {
 		return
 	}
 
@@ -178,9 +182,16 @@ func (b *bot) onClearChatMessage(message twitch.ClearChatMessage) {
 		},
 	}
 
-	for _, m := range b.messageHistory {
+	for _, m := range b.messageHistory[message.Channel] {
 		if m.User.ID == message.TargetUserID {
+
+			if _, ok := m.Tags["__deleted"]; ok {
+				continue
+			}
+
 			messages = append(messages, m)
+
+			m.Tags["__deleted"] = "true"
 		}
 	}
 
@@ -203,14 +214,20 @@ func (b *bot) onClearMessage(deletedMessage twitch.ClearMessage) {
 
 	println(deletedMessage.Raw + "\n")
 
-	for _, m := range b.messageHistory {
+	for _, m := range b.messageHistory[deletedMessage.Channel] {
 		if m.ID == deletedMessage.TargetMsgID {
+
+			if _, ok := m.Tags["__deleted"]; ok {
+				continue
+			}
 
 			m.Message = fmt.Sprintf("`Message Deleted:`%s", m.Message)
 
 			go b.sendMessage(
 				m,
 			)
+
+			m.Tags["__deleted"] = "true"
 		}
 	}
 }
@@ -256,6 +273,7 @@ func LaunchNewBot(filePath string, channel *Channel) {
 		fileName:        filePath,
 		sendMessageLock: sync.Mutex{},
 		firstMessages:   map[string]int{},
+		messageHistory:  map[string][]twitch.PrivateMessage{},
 	}
 
 	defer recover()
@@ -328,7 +346,7 @@ func (b *bot) startClient() (err error) {
 
 	time.Sleep(5 * time.Second)
 
-	b.client.Join(b.config.Channel)
+	b.client.Join(b.config.Channels...)
 
 	return err
 }
@@ -357,6 +375,36 @@ func (b *bot) getTwitchAvatarUrl(name string) string {
 	}
 
 	return ""
+}
+
+func (b *bot) onStreamStatus(channel string) bool {
+
+	if b.config.OnStreamStatus == "" {
+		return true
+	}
+
+	userId := b.getTwitchUserId(channel)
+
+	response, err := b.helixApi.GetStreams(&helix.StreamsParams{
+		UserIDs: []string{userId},
+	})
+
+	if err != nil {
+		b.errorLog(err)
+		return false
+	}
+
+	isStreaming := len(response.Data.Streams) > 0
+
+	if b.config.OnStreamStatus == "online" && isStreaming {
+		return true
+	}
+
+	if b.config.OnStreamStatus == "offline" && !isStreaming {
+		return true
+	}
+
+	return false
 }
 
 func (b *bot) sendMessage(message twitch.PrivateMessage) {
@@ -404,7 +452,7 @@ func (b *bot) sendMessage(message twitch.PrivateMessage) {
 
 		var thread = fmt.Sprintf("`%s`: %s\n", message.Reply.ParentDisplayName, parseMessage(message.Reply.ParentMsgBody))
 
-		for _, msg := range b.messageHistory {
+		for _, msg := range b.messageHistory[message.Channel] {
 			if msg.Reply == nil {
 				continue
 			}

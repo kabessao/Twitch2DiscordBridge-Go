@@ -25,16 +25,16 @@ type config struct {
 	channel     *twitchBot.Channel
 }
 
+var bots = make(map[string]config)
+var path = fmt.Sprintf(".%c", os.PathSeparator)
+
 func main() {
-	var path = fmt.Sprintf(".%c", os.PathSeparator)
 
 	files, err := filepath.Glob("*")
 
 	if err != nil {
 		panic(err)
 	}
-
-	var bots = make(map[string]config)
 
 	for _, file := range files {
 		if _, ok := bots[file]; !ok {
@@ -73,6 +73,17 @@ func main() {
 
 	defer watcher.Close()
 
+	go func() {
+		for {
+			for fileName, bot := range bots {
+				if bot.channel != nil && !bot.channel.IsOk {
+					tryReconnect(fileName)
+				}
+			}
+			time.Sleep(10 * time.Second)
+		}
+	}()
+
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -93,16 +104,7 @@ func main() {
 			fileName := strings.ReplaceAll(event.Name, path, "")
 
 			if _, ok := bots[fileName]; !ok {
-				bots[fileName] = config{
-					lastUpdated: time.Now(),
-					channel: &twitchBot.Channel{
-						IsOk:    true,
-						Channel: make(chan bool),
-					},
-				}
-
-				go twitchBot.LaunchNewBot(path+fileName, bots[fileName].channel)
-
+				tryReconnect(fileName)
 				continue
 			}
 
@@ -139,4 +141,16 @@ func main() {
 		}
 	}
 
+}
+
+func tryReconnect(fileName string) {
+	bots[fileName] = config{
+		lastUpdated: time.Now(),
+		channel: &twitchBot.Channel{
+			IsOk:    true,
+			Channel: make(chan bool),
+		},
+	}
+
+	go twitchBot.LaunchNewBot(path+fileName, bots[fileName].channel)
 }

@@ -18,6 +18,7 @@ type Config struct {
 	Channel        string `yaml:"channel"`
 
 	// optionals
+	Channels          []string    `yaml:"channels"`
 	SendAllMessages   bool        `yaml:"send_all_messages"`
 	PreventPing       bool        `yaml:"prevent_ping"`
 	ShowBitGifters    interface{} `yaml:"show_bit_gifters"`
@@ -30,7 +31,10 @@ type Config struct {
 	FilterMessages    []string    `yaml:"filter_messages"`
 	GrabEmotes        bool        `yaml:"grab_emotes"`
 	UseExternalEmotes bool        `yaml:"use_external_emotes"`
-	ModTools          ModTools    `yaml:"mod_tools"`
+	OnStreamStatus    string      `yaml:"on_stream_status"`
+
+	// Extras
+	ModTools ModTools `yaml:"mod_tools"`
 }
 
 type ModTools struct {
@@ -58,6 +62,10 @@ func LoadConfigConfigFromBytes(value []byte) (Config, error) {
 		if len(split) < 2 {
 			return c, errors.New(fmt.Sprintf("[%s] is not a valid url", c.WebhookUrl))
 		}
+	}
+
+	if c.Channel != "" {
+		c.Channels = append(c.Channels, c.Channel)
 	}
 
 	return c, nil
