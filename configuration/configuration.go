@@ -10,6 +10,7 @@ import (
 )
 
 type Config struct {
+
 	// mandatory
 	WebhookUrl     string `yaml:"webhook_url"`
 	TwitchClientId string `yaml:"twitch_client_id"`
@@ -18,23 +19,29 @@ type Config struct {
 	Channel        string `yaml:"channel"`
 
 	// optionals
-	Channels          []string    `yaml:"channels"`
-	SendAllMessages   bool        `yaml:"send_all_messages"`
-	PreventPing       bool        `yaml:"prevent_ping"`
-	ShowBitGifters    interface{} `yaml:"show_bit_gifters"`
-	ShowHyperChat     interface{} `yaml:"show_hyber_chat"`
-	OutputLog         bool        `yaml:"output_log"`
-	ModActions        bool        `yaml:"mod_actions"`
-	FilterBadges      []string    `yaml:"filter_badges"`
-	FilterUsernames   []string    `yaml:"filter_usernames"`
-	Blacklist         []string    `yaml:"blacklist"`
-	FilterMessages    []string    `yaml:"filter_messages"`
-	GrabEmotes        bool        `yaml:"grab_emotes"`
-	UseExternalEmotes bool        `yaml:"use_external_emotes"`
-	OnStreamStatus    string      `yaml:"on_stream_status"`
+	Channels          []string            `yaml:"channels"`
+	SendAllMessages   bool                `yaml:"send_all_messages"`
+	PreventPing       bool                `yaml:"prevent_ping"`
+	ShowBitGifters    any                 `yaml:"show_bit_gifters"`
+	ShowHyperChat     any                 `yaml:"show_hyber_chat"`
+	OutputLog         bool                `yaml:"output_log"`
+	ModActions        bool                `yaml:"mod_actions"`
+	FilterBadges      []string            `yaml:"filter_badges"`
+	FilterUsernames   []string            `yaml:"filter_usernames"`
+	Blacklist         []string            `yaml:"blacklist"`
+	FilterMessages    []string            `yaml:"filter_messages"`
+	GrabEmotes        bool                `yaml:"grab_emotes"`
+	UseExternalEmotes bool                `yaml:"use_external_emotes"`
+	OnStreamStatus    string              `yaml:"on_stream_status"`
+	UserNoticeMessage []UserNoticeMessage `yaml:"user_notice_message"`
 
 	// Extras
 	ModTools ModTools `yaml:"mod_tools"`
+}
+
+type UserNoticeMessage struct {
+	Type string `yaml:"type"`
+	Min  int    `yaml:"min"`
 }
 
 type ModTools struct {

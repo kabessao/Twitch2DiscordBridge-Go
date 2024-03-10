@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/webhook"
+	"github.com/dlclark/regexp2"
 	"github.com/gempir/go-twitch-irc/v4"
 	"github.com/nicklaw5/helix"
 )
@@ -33,6 +35,7 @@ type bot struct {
 	overHeatAmount  int
 	isOverHeated    bool
 	messageHistory  map[string][]twitch.PrivateMessage
+	channel         Channel
 }
 
 func (b *bot) log(message string) {
@@ -154,7 +157,9 @@ func (b *bot) onClearChatMessage(message twitch.ClearChatMessage) {
 		return
 	}
 
-	b.log(fmt.Sprintf(message.Raw))
+	if b.config.OutputLog {
+		go b.log(fmt.Sprintf(message.Raw))
+	}
 
 	var timeoutMessage = "`User got banned permanently`"
 
@@ -212,7 +217,9 @@ func (b *bot) onClearMessage(deletedMessage twitch.ClearMessage) {
 		return
 	}
 
-	println(deletedMessage.Raw + "\n")
+	if b.config.OutputLog {
+		go b.log(fmt.Sprintf(deletedMessage.Raw))
+	}
 
 	for _, m := range b.messageHistory[deletedMessage.Channel] {
 		if m.ID == deletedMessage.TargetMsgID {
@@ -228,6 +235,72 @@ func (b *bot) onClearMessage(deletedMessage twitch.ClearMessage) {
 			)
 
 			m.Tags["__deleted"] = "true"
+		}
+	}
+}
+
+func (b *bot) onUserNoticeMessage(message twitch.UserNoticeMessage) {
+
+	if b.config.OutputLog {
+		go b.log(fmt.Sprintf(message.Raw))
+	}
+
+	if len(b.config.UserNoticeMessage) == 0 {
+		return
+	}
+
+	re := regexp2.MustCompile(`\s#(\w+)`, regexp2.None)
+	match, err := re.FindStringMatch(message.Raw)
+	if err != nil {
+		b.errorLog(err)
+		return
+	}
+
+	channel := match.GroupByNumber(1).String()
+
+	go b.log(fmt.Sprintf("value: %v", message.Tags))
+
+	var webhookMessage discord.WebhookMessageCreate
+
+	msgId := message.Tags["msg-id"]
+
+	for _, config := range b.config.UserNoticeMessage {
+
+		switch config.Type {
+
+		case "raid":
+
+			if config.Type != msgId {
+				continue
+			}
+
+			var raidersAmmount int
+
+			if value, ok := message.Tags["msg-param-viewerCount"]; ok {
+				raidersAmmount, _ = strconv.Atoi(value)
+				if raidersAmmount < config.Min {
+					return
+				}
+			}
+
+			webhookMessage.Content = fmt.Sprintf("%d raiders just arrived", raidersAmmount)
+
+			webhookMessage.AvatarURL = b.getTwitchAvatarUrl(message.User.Name)
+
+			webhookMessage.Username = fmt.Sprintf(
+				"%s [%s chat]",
+				message.User.DisplayName,
+				utils.PluralSufixParser(channel),
+			)
+
+			_, err = b.webhookClient.CreateMessage(webhookMessage)
+
+			if err != nil {
+				b.errorLog(err)
+			}
+
+		default:
+			return
 		}
 	}
 }
@@ -252,6 +325,25 @@ func (b *bot) loadConfiguration() error {
 		return fmt.Errorf("Couldn't start webhook client: %v", err)
 	}
 
+	var pong = false
+
+	client.OnPingSent(func() {
+		go func() {
+			time.Sleep(3 * time.Second)
+			if !pong && b.channel.IsOk {
+				b.errorLog(fmt.Errorf("Connection timeout reached!"))
+				close(b.channel.Channel)
+				return
+			}
+			pong = false
+		}()
+
+	})
+
+	client.OnPongMessage(func(message twitch.PongMessage) {
+		pong = true
+	})
+
 	client.OnConnect(b.onConnect)
 
 	client.OnPrivateMessage(b.onPrivateMessage)
@@ -259,6 +351,8 @@ func (b *bot) loadConfiguration() error {
 	client.OnClearChatMessage(b.onClearChatMessage)
 
 	client.OnClearMessage(b.onClearMessage)
+
+	client.OnUserNoticeMessage(b.onUserNoticeMessage)
 
 	return nil
 }
@@ -274,6 +368,7 @@ func LaunchNewBot(filePath string, channel *Channel) {
 		sendMessageLock: sync.Mutex{},
 		firstMessages:   map[string]int{},
 		messageHistory:  map[string][]twitch.PrivateMessage{},
+		channel:         *channel,
 	}
 
 	defer recover()
@@ -367,7 +462,6 @@ func (b *bot) getTwitchUserId(name string) string {
 
 	return ""
 }
-
 func (b *bot) getTwitchAvatarUrl(name string) string {
 
 	if userInfo, err := b.helixApi.GetUsers(&helix.UsersParams{Logins: []string{name}}); err == nil && len(userInfo.Data.Users) > 0 {

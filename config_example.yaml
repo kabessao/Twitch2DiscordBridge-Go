@@ -135,3 +135,13 @@ oauth_password: 'YOUR TWITCH OAUTH'
 #
 #grab_emotes: true
 
+# With this option you can get notifications whenever a raid just arrived. 
+# You can also set a max amount of users for the message to appear
+# (the idea is to implement all of user notice messages, but this will do for now)
+#
+# default: none
+# 
+#user_notice_message:
+#  - 
+#    type: raid # for now there's only raid. More in the future
+#    min: 100 # only raids with more than 100 users will be shown. 
