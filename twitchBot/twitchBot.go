@@ -559,7 +559,7 @@ func (b *bot) sendMessage(message twitch.PrivateMessage) {
 				continue
 			}
 
-			if msg.Reply.ParentMsgID == message.Reply.ParentMsgID {
+			if msg.Tags["reply-thread-parent-msg-id"] == message.Tags["reply-thread-parent-msg-id"] {
 				thread += fmt.Sprintf("`%s`: %s\n", msg.User.DisplayName, parseMessage(msg.Message))
 			}
 		}
