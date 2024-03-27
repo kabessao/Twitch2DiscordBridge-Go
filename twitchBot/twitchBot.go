@@ -580,7 +580,7 @@ func (b *bot) sendMessage(message twitch.PrivateMessage) {
 
 	webhookMessage.AvatarURL = b.getTwitchAvatarUrl(message.User.Name)
 
-	webhookMessage.Username = fmt.Sprintf("%s [%s chat]", message.User.DisplayName, utils.PluralSufixParser(b.config.Channel))
+	webhookMessage.Username = fmt.Sprintf("%s [%s chat]", message.User.DisplayName, utils.PluralSufixParser(message.Channel))
 	webhookMessage.Embeds = messageEmbeds
 
 	msg, err := b.webhookClient.CreateMessage(webhookMessage)
