@@ -108,10 +108,6 @@ func (b *bot) onPrivateMessage(message twitch.PrivateMessage) {
 		shouldSend = true
 	}
 
-	if utils.ParseHypeChat(&message, b.config) {
-		shouldSend = true
-	}
-
 	if b.shouldSendFirstMessages(&message) {
 		shouldSend = true
 	}
@@ -161,10 +157,10 @@ func (b *bot) onClearChatMessage(message twitch.ClearChatMessage) {
 		go b.log(fmt.Sprintf(message.Raw))
 	}
 
-	var timeoutMessage = "`User got banned permanently`"
+	var timeoutMessage = "User was banned permanently"
 
 	if duration := message.BanDuration; duration > 0 {
-		timeoutMessage = fmt.Sprintf("`User got timed out for %s`", utils.ParseIntDuration(duration))
+		timeoutMessage = fmt.Sprintf("User was timed out for %s", utils.ParseIntDuration(duration))
 	}
 
 	usersInfo, err := b.helixApi.GetUsers(&helix.UsersParams{
@@ -177,15 +173,7 @@ func (b *bot) onClearChatMessage(message twitch.ClearChatMessage) {
 
 	var userInfo = usersInfo.Data.Users[0]
 
-	var messages = []twitch.PrivateMessage{
-		{
-			Message: timeoutMessage,
-			User: twitch.User{
-				DisplayName: userInfo.DisplayName,
-				Name:        userInfo.Login,
-			},
-		},
-	}
+	var messages []string
 
 	for _, m := range b.messageHistory[message.Channel] {
 		if m.User.ID == message.TargetUserID {
@@ -194,20 +182,35 @@ func (b *bot) onClearChatMessage(message twitch.ClearChatMessage) {
 				continue
 			}
 
-			messages = append(messages, m)
+			messages = append(messages, "- "+m.Message)
 
 			m.Tags["__deleted"] = "true"
 		}
 	}
 
-	for index, item := range messages {
-		b.sendMessage(
-			item,
-		)
+	var webhookMessage = discord.WebhookMessageCreate{
+		AvatarURL: b.getTwitchAvatarUrl(message.Channel),
+	}
 
-		if index == 0 {
-			time.Sleep(time.Second)
-		}
+	usercardURL := fmt.Sprintf("https://www.twitch.tv/popout/%s/viewercard/%s", message.Channel, message.TargetUsername)
+
+	webhookMessage.Username = fmt.Sprintf("%s chat mod action", utils.PluralSufixParser(message.Channel))
+	webhookMessage.Embeds = []discord.Embed{
+		{
+			Author: &discord.EmbedAuthor{
+				Name:    fmt.Sprintf("%s (%s)", message.TargetUsername, message.TargetUserID),
+				IconURL: userInfo.ProfileImageURL,
+				URL:     usercardURL,
+			},
+			Title:       timeoutMessage,
+			Description: strings.Join(messages, "\n"),
+		},
+	}
+
+	_, err = b.webhookClient.CreateMessage(webhookMessage)
+	if err != nil {
+		b.errorLog(fmt.Errorf("Couldn't send webhook message. Error: %s", err))
+		return
 	}
 
 }
@@ -228,11 +231,32 @@ func (b *bot) onClearMessage(deletedMessage twitch.ClearMessage) {
 				continue
 			}
 
-			m.Message = fmt.Sprintf("`Message Deleted:`%s", m.Message)
+			var webhookMessage = discord.WebhookMessageCreate{
+				AvatarURL: b.getTwitchAvatarUrl(m.Channel),
+			}
 
-			go b.sendMessage(
-				m,
-			)
+			userProfilePicture := b.getTwitchAvatarUrl(m.User.Name)
+
+			usercardURL := fmt.Sprintf("https://www.twitch.tv/popout/%s/viewercard/%s", m.Channel, m.User.Name)
+
+			webhookMessage.Username = fmt.Sprintf("%s chat mod action", utils.PluralSufixParser(m.Channel))
+			webhookMessage.Embeds = []discord.Embed{
+				{
+					Author: &discord.EmbedAuthor{
+						Name:    fmt.Sprintf("%s (%s)", m.User.Name, m.User.ID),
+						IconURL: userProfilePicture,
+						URL:     usercardURL,
+					},
+					Title:       "Message Deleted",
+					Description: "- " + m.Message,
+				},
+			}
+
+			_, err := b.webhookClient.CreateMessage(webhookMessage)
+			if err != nil {
+				b.errorLog(fmt.Errorf("Couldn't send webhook message. Error: %s", err))
+				return
+			}
 
 			m.Tags["__deleted"] = "true"
 		}
@@ -245,10 +269,6 @@ func (b *bot) onUserNoticeMessage(message twitch.UserNoticeMessage) {
 		go b.log(fmt.Sprintf(message.Raw))
 	}
 
-	if len(b.config.UserNoticeMessage) == 0 {
-		return
-	}
-
 	re := regexp2.MustCompile(`\s#(\w+)`, regexp2.None)
 	match, err := re.FindStringMatch(message.Raw)
 	if err != nil {
@@ -258,50 +278,94 @@ func (b *bot) onUserNoticeMessage(message twitch.UserNoticeMessage) {
 
 	channel := match.GroupByNumber(1).String()
 
-	go b.log(fmt.Sprintf("value: %v", message.Tags))
+	msgId := message.Tags["msg-id"]
+
+	switch msgId {
+
+	case "raid":
+		b.sendRaidMessage(message, channel)
+
+	case "announcement":
+		b.sendAnnouncementMessage(message, channel)
+
+	default:
+		return
+
+	}
+
+}
+func (b *bot) sendAnnouncementMessage(message twitch.UserNoticeMessage, channel string) {
+
+	if !b.config.ShowAnnouncementMessages {
+		return
+	}
 
 	var webhookMessage discord.WebhookMessageCreate
 
-	msgId := message.Tags["msg-id"]
+	webhookMessage.Username = fmt.Sprintf(
+		"%s announcements",
+		utils.PluralSufixParser(channel),
+	)
 
-	for _, config := range b.config.UserNoticeMessage {
+	webhookMessage.AvatarURL = b.getTwitchAvatarUrl(channel)
 
-		switch config.Type {
+	webhookMessage.Embeds = []discord.Embed{
+		{
+			Author: &discord.EmbedAuthor{
+				Name:    message.User.DisplayName,
+				IconURL: b.getTwitchAvatarUrl(message.User.Name),
+			},
+			Description: message.Message,
+		},
+	}
 
-		case "raid":
+	_, err := b.webhookClient.CreateMessage(webhookMessage)
+	if err != nil {
+		b.errorLog(err)
+	}
 
-			if config.Type != msgId {
-				continue
-			}
+}
 
-			var raidersAmmount int
+func (b *bot) sendRaidMessage(message twitch.UserNoticeMessage, channel string) {
 
-			if value, ok := message.Tags["msg-param-viewerCount"]; ok {
-				raidersAmmount, _ = strconv.Atoi(value)
-				if raidersAmmount < config.Min {
-					return
-				}
-			}
+	if value, ok := b.config.ShowRaidMessages.(bool); ok && !value {
+		return
+	}
 
-			webhookMessage.Content = fmt.Sprintf("%d raiders just arrived", raidersAmmount)
+	var raidersAmmount int
 
-			webhookMessage.AvatarURL = b.getTwitchAvatarUrl(message.User.Name)
+	if value, ok := message.Tags["msg-param-viewerCount"]; ok {
+		raidersAmmount, _ = strconv.Atoi(value)
 
-			webhookMessage.Username = fmt.Sprintf(
-				"%s [%s chat]",
-				message.User.DisplayName,
-				utils.PluralSufixParser(channel),
-			)
-
-			_, err = b.webhookClient.CreateMessage(webhookMessage)
-
-			if err != nil {
-				b.errorLog(err)
-			}
-
-		default:
+		if value, ok := b.config.ShowRaidMessages.(int); ok && raidersAmmount < value {
 			return
 		}
+	}
+
+	var webhookMessage discord.WebhookMessageCreate
+
+	webhookMessage.Username = fmt.Sprintf(
+		"%s raid message",
+		utils.PluralSufixParser(channel),
+	)
+
+	webhookMessage.AvatarURL = b.getTwitchAvatarUrl(channel)
+
+	webhookMessage.Embeds = []discord.Embed{
+		{
+			Author: &discord.EmbedAuthor{
+				Name:    message.User.DisplayName,
+				IconURL: b.getTwitchAvatarUrl(message.User.Name),
+				URL:     fmt.Sprintf("https://www.twitch.tv/%s", message.User.Name),
+			},
+			Title: fmt.Sprintf("`%d raiders just arrived`", raidersAmmount),
+		},
+	}
+
+	_, err := b.webhookClient.CreateMessage(webhookMessage)
+
+	if err != nil {
+		b.errorLog(err)
 	}
 }
 
@@ -473,7 +537,7 @@ func (b *bot) getTwitchAvatarUrl(name string) string {
 
 func (b *bot) onStreamStatus(channel string) bool {
 
-	if b.config.OnStreamStatus == "" {
+	if !utils.StringArrayContains([]string{"online", "offline"}, b.config.OnStreamStatus) {
 		return true
 	}
 
@@ -544,14 +608,10 @@ func (b *bot) sendMessage(message twitch.PrivateMessage) {
 
 		message.Message = parseMessage(message.Message)
 
-		var thread = fmt.Sprintf("`%s`: %s\n", message.Reply.ParentDisplayName, parseMessage(message.Reply.ParentMsgBody))
+		var thread []string
 
 		for _, msg := range b.messageHistory[message.Channel] {
 			if msg.Reply == nil {
-				continue
-			}
-
-			if msg.ID == message.Reply.ParentMsgID {
 				continue
 			}
 
@@ -560,13 +620,18 @@ func (b *bot) sendMessage(message twitch.PrivateMessage) {
 			}
 
 			if msg.Tags["reply-thread-parent-msg-id"] == message.Tags["reply-thread-parent-msg-id"] {
-				thread += fmt.Sprintf("`%s`: %s\n", msg.User.DisplayName, parseMessage(msg.Message))
+				thread = append(thread, fmt.Sprintf("`%s`: %s", msg.User.DisplayName, parseMessage(msg.Message)))
 			}
+		}
+
+		if b.config.ThreadLimit > 0 && len(thread) > b.config.ThreadLimit {
+			thread = thread[len(thread)-b.config.ThreadLimit-1:]
+			thread[0] = "..."
 		}
 
 		var embed = discord.Embed{
 			Title:       "Thread Replies:",
-			Description: thread,
+			Description: strings.Join(thread, "\n"),
 		}
 
 		messageEmbeds = append(messageEmbeds, embed)
@@ -585,7 +650,7 @@ func (b *bot) sendMessage(message twitch.PrivateMessage) {
 
 	msg, err := b.webhookClient.CreateMessage(webhookMessage)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Couldn't send webhook message. Error: %s\n\n", err)
+		b.errorLog(fmt.Errorf("Couldn't send webhook message. Error: %s\n\n", err))
 		return
 	}
 

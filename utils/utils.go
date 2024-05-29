@@ -232,29 +232,6 @@ func StringReplaceAllRegex(regex string, in string, to string) string {
 	return strings.Trim(text, " ")
 }
 
-func ParseHypeChat(message *twitchIrc.PrivateMessage, config configuration.Config) bool {
-
-	if value, ok := config.ShowHyperChat.(bool); ok && !value {
-		return false
-	}
-
-	var bits int
-	if value, ok := message.Tags["pinned-chat-paid-amount"]; ok {
-		bits, _ = strconv.Atoi(value)
-	}
-
-	if bits == 0 {
-		return false
-	}
-
-	if value, ok := config.ShowHyperChat.(int); ok && bits < value {
-		return false
-	}
-
-	message.User.DisplayName = fmt.Sprintf("%s [HypeChat: %d]", message.User.DisplayName, bits)
-	return true
-}
-
 // uses 's when the string doesn't end with an "s"
 //
 // uses just a ' if it does

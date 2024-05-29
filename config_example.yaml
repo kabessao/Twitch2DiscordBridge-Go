@@ -69,14 +69,6 @@ oauth_password: 'YOUR TWITCH OAUTH'
 #show_bit_gifters: true # shows every cheer message
 #show_bit_gifters: 500 # shows only cheer messages with 500 bits or more 
 
-# This option is similar to the cheer messages, but with hyperchats 
-# (even though they're dying in the next months)
-#
-# Default: false
-#
-#show_hyper_chat: true # shows every hyper chat
-#show_hyper_chat: 500 # shows only hyper chats with 500 bits or more
-
 # This option makes the bot instance to print out every message in raw format.
 # if you enable "mod_actions" it'll output those messages in raw format as well.
 #
@@ -135,13 +127,28 @@ oauth_password: 'YOUR TWITCH OAUTH'
 #
 #grab_emotes: true
 
-# With this option you can get notifications whenever a raid just arrived. 
-# You can also set a max amount of users for the message to appear
-# (the idea is to implement all of user notice messages, but this will do for now)
+# ATTENTION: 
+# The `user_notice_message` was deprecated, will no longer be used, and it'll generate an error if used.
+# use the new options specific for your use case.
+
+# This option enables Raid messages, where it shows who raided, and the amount of raiders.
+# It also links the raider's channel in the embed.
 #
-# default: none
+# Default: false
+#
+#show_raid_messages: true # show all raid messages
+#show_raid_messages: 300  # show only raids with more than 300 raiders 
+
+# This enables Announcements from mods and the broadcaster.
+# I'll show as an embed.
+#
+# Default: false
+#
+#show_announcement_messages: true 
+
+# This option limits the amount of messages in the threads to show up.
+# It'll show a "..." whenever the thread limit is reached
 # 
-#user_notice_message:
-#  - 
-#    type: raid # for now there's only raid. More in the future
-#    min: 100 # only raids with more than 100 users will be shown. 
+# Default: 0
+#
+#thread_limit: 5 # Will only show 5 thread messages

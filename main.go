@@ -49,7 +49,7 @@ func main() {
 				continue
 			}
 
-			if !strings.HasSuffix(file, FILE_NAME_PATTERN) {
+			if !strings.HasSuffix(strings.ToLower(file), FILE_NAME_PATTERN) {
 				continue
 			}
 
